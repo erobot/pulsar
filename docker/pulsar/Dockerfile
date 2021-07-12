@@ -34,7 +34,6 @@ COPY scripts/watch-znode.py /pulsar/bin
 COPY scripts/install-pulsar-client.sh /pulsar/bin
 COPY scripts/set_python_version.sh /pulsar/bin
 COPY scripts/install-pulsar-client-37.sh /pulsar/bin
-COPY scripts/optimize-java-network.sh /pulsar/bin
 
 RUN mkdir /pulsar/data
 
@@ -66,8 +65,7 @@ ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
 RUN echo networkaddress.cache.ttl=1 >> /usr/lib/jvm/java-11-openjdk-amd64/conf/security/java.security
 ADD target/python-client/ /pulsar/pulsar-client
 ADD target/cpp-client/ /pulsar/cpp-client
-# RUN echo networkaddress.cache.ttl=1 >> $JAVA_HOME/jre/lib/security/java.security
-RUN bash -c /pulsar/bin/optimize-java-network.sh
+RUN echo networkaddress.cache.ttl=1 >> $JAVA_HOME/jre/lib/security/java.security
 RUN apt-get update \
      && apt install -y /pulsar/cpp-client/*.deb \
      && apt-get clean \
