@@ -43,6 +43,7 @@ RUN mkdir /pulsar/data
 FROM ubuntu:20.04
 
 ARG DEBIAN_FRONTEND=noninteractive
+FROM openjdk:8-jdk-slim-buster
 
 # Install some utilities
 RUN apt-get update \
