@@ -136,7 +136,7 @@ public class PulsarAdminToolTest {
         verify(mockBrokers).getRuntimeConfigurations();
 
         brokers.run(split("healthcheck"));
-        verify(mockBrokers).healthcheck();
+        verify(mockBrokers).healthcheck(null);
 
         brokers.run(split("version"));
         verify(mockBrokers).getVersion();
