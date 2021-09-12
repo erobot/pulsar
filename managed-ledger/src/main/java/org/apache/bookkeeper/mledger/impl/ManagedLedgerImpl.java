@@ -1444,6 +1444,7 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
                     mbean.startDataLedgerDeleteOp();
                     bookKeeper.asyncDeleteLedger(lh.getId(), (rc1, ctx1) -> {
                         mbean.endDataLedgerDeleteOp();
+                        log.info("delete ledger {}", lh.getId());
                         if (rc1 != BKException.Code.OK) {
                             log.warn("[{}] Failed to delete ledger {}: {}", name, lh.getId(),
                                     BKException.getMessage(rc1));
@@ -1466,6 +1467,20 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
                     }
 
                     metadataMutex.unlock();
+
+                    if (e instanceof BadVersionException) {
+                        synchronized (ManagedLedgerImpl.this) {
+                            log.error(
+                                    "[{}] Failed to update ledger list. z-node version mismatch. Closing managed ledger",
+                                    name);
+                            STATE_UPDATER.set(ManagedLedgerImpl.this, State.Fenced);
+                            // Return ManagedLedgerFencedException to addFailed callback
+                            // to indicate that the ledger is now fenced and topic needs to be closed
+                            clearPendingAddEntries(new ManagedLedgerFencedException(e));
+                            // Do not need to unlock ledgersListMutex here because we are going to close to topic anyways
+                            return;
+                        }
+                    }
 
                     synchronized (ManagedLedgerImpl.this) {
                         lastLedgerCreationFailureTimestamp = clock.millis();
