@@ -25,37 +25,55 @@
 ## ./apply-config-from-env file.conf
 ##
 
-import os, sys
+import argparse
+import os
 
-if len(sys.argv) < 2:
-    print('Usage: %s' % (sys.argv[0]))
-    sys.exit(1)
+parser = argparse.ArgumentParser(description='apply config from env')
+parser.add_argument("--env_file", type=str, required=False, help="the env file")
+parser.add_argument("conf_files", nargs="+", help="the conf files")
+args = parser.parse_args()
 
 # Always apply env config to env scripts as well
-conf_files = sys.argv[1:]
+conf_files = args.conf_files
 
 PF_ENV_PREFIX = 'PULSAR_PREFIX_'
-PF_ENV_DEBUG = (os.environ.get('PF_ENV_DEBUG','0') == '1')
+PF_ENV_DEBUG = (os.environ.get('PF_ENV_DEBUG', '0') == '1')
+
+# Try load env file
+if args.env_file:
+    with open(args.env_file, "r") as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith("#"):
+                continue
+
+            try:
+                k, v = line.split('=', 1)
+                os.environ[k.strip()] = v.strip()
+            except:
+                if PF_ENV_DEBUG:
+                    print("[%s] skip env Processing %s" % (args.env_file, line))
 
 for conf_filename in conf_files:
     lines = []  # List of config file lines
-    keys = {} # Map a key to its line number in the file
+    keys = {}  # Map a key to its line number in the file
 
     # Load conf file
-    for line in open(conf_filename):
-        lines.append(line)
-        line = line.strip()
-        if not line:
-            continue
+    with open(conf_filename, "r") as f:
+        for line in f:
+            lines.append(line)
+            line = line.strip()
+            if not line:
+                continue
 
-        try:
-            k,v = line.split('=', 1)
-            if k.startswith('#'):
-                k = k[1:]
-            keys[k.strip()] = len(lines) - 1
-        except:
-            if PF_ENV_DEBUG:
-                print("[%s] skip Processing %s" % (conf_filename, line))
+            try:
+                k, v = line.split('=', 1)
+                if k.startswith('#'):
+                    k = k[1:]
+                keys[k.strip()] = len(lines) - 1
+            except:
+                if PF_ENV_DEBUG:
+                    print("[%s] skip Processing %s" % (conf_filename, line))
 
     # Update values from Env
     for k in sorted(os.environ.keys()):
@@ -76,7 +94,6 @@ for conf_filename in conf_files:
             print('[%s] Applying config %s = %s' % (conf_filename, k, displayValue))
             idx = keys[k]
             lines[idx] = '%s=%s\n' % (k, v)
-
 
     # Add new keys from Env
     for k in sorted(os.environ.keys()):
@@ -101,10 +118,7 @@ for conf_filename in conf_files:
             print('[%s] Updating config %s = %s' % (conf_filename, k, displayValue))
             lines[keys[k]] = '%s=%s\n' % (k, v)
 
-
     # Store back the updated config in the same file
-    f = open(conf_filename, 'w')
-    for line in lines:
-        f.write(line)
-    f.close()
-
+    with open(conf_filename, 'w') as f:
+        for line in lines:
+            f.write(line)
