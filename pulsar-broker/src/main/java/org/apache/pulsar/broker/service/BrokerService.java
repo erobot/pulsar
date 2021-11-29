@@ -842,36 +842,17 @@ public class BrokerService implements Closeable, ZooKeeperCacheListener<Policies
             // unload all namespace-bundles gracefully
             long closeTopicsStartTime = System.nanoTime();
             Set<NamespaceBundle> serviceUnits = pulsar.getNamespaceService().getOwnedServiceUnits();
-            if (serviceUnits != null) {
-                serviceUnits.forEach(su -> {
-                    if (su instanceof NamespaceBundle) {
-                        try {
-                            pulsar.getNamespaceService().unloadNamespaceBundle(su, 1, TimeUnit.MINUTES).get();
-                        } catch (Exception e) {
-                            log.warn("Failed to unload namespace bundle {}", su, e);
-                        }
+            serviceUnits.forEach(su -> {
+                if (su instanceof NamespaceBundle) {
+                    try {
+                        pulsar.getNamespaceService().unloadNamespaceBundle(su,
+                                pulsar.getConfiguration().getNamespaceBundleUnloadingTimeoutMs(), TimeUnit.MILLISECONDS)
+                                .get();
+                    } catch (Exception e) {
+                        log.warn("Failed to unload namespace bundle {}", su, e);
                     }
-                });
-                try (RateLimiter rateLimiter = maxConcurrentUnload > 0 ? RateLimiter.builder()
-                        .scheduledExecutorService(pulsar.getExecutor())
-                        .rateTime(1).timeUnit(TimeUnit.SECONDS)
-                        .permits(maxConcurrentUnload).build() : null) {
-                    serviceUnits.forEach(su -> {
-                        if (su != null) {
-                            try {
-                                if (rateLimiter != null) {
-                                    rateLimiter.acquire(1);
-                                }
-                                pulsar.getNamespaceService().unloadNamespaceBundle(su, pulsar.getConfiguration()
-                                                .getNamespaceBundleUnloadingTimeoutMs(), TimeUnit.MILLISECONDS,
-                                        closeWithoutWaitingClientDisconnect).get();
-                            } catch (Exception e) {
-                                log.warn("Failed to unload namespace bundle {}", su, e);
-                            }
-                        }
-                    });
                 }
-            }
+            });
 
             double closeTopicsTimeSeconds = TimeUnit.NANOSECONDS.toMillis((System.nanoTime() - closeTopicsStartTime))
                     / 1000.0;
