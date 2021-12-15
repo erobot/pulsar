@@ -20,6 +20,7 @@ package org.apache.pulsar.broker.service;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -39,6 +40,8 @@ import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.impl.Backoff;
+import org.apache.pulsar.client.impl.MessageImpl;
+import org.apache.pulsar.client.impl.TopicMessageImpl;
 import org.apache.pulsar.client.util.RetryUtil;
 import org.apache.pulsar.common.events.ActionType;
 import org.apache.pulsar.common.events.EventType;
@@ -64,6 +67,8 @@ public class SystemTopicBasedTopicPoliciesService implements TopicPoliciesServic
 
     @VisibleForTesting
     final Map<TopicName, TopicPolicies> policiesCache = new ConcurrentHashMap<>();
+
+    final Map<TopicName, TopicPolicies> globalPoliciesCache = new ConcurrentHashMap<>();
 
     private final Map<NamespaceName, AtomicInteger> ownedBundlesCountPerNamespace = new ConcurrentHashMap<>();
 
@@ -137,7 +142,12 @@ public class SystemTopicBasedTopicPoliciesService implements TopicPoliciesServic
     }
 
     private PulsarEvent getPulsarEvent(TopicName topicName, ActionType actionType, TopicPolicies policies) {
-        return PulsarEvent.builder()
+        PulsarEvent.PulsarEventBuilder builder = PulsarEvent.builder();
+        if (policies == null || !policies.isGlobalPolicies()) {
+            // we don't need to replicate local policies to remote cluster, so set `replicateTo` to empty.
+            builder.replicateTo(new HashSet<>());
+        }
+        return builder
                 .actionType(actionType)
                 .eventType(EventType.TOPIC_POLICY)
                 .topicPoliciesEvent(
@@ -179,6 +189,12 @@ public class SystemTopicBasedTopicPoliciesService implements TopicPoliciesServic
 
     @Override
     public TopicPolicies getTopicPolicies(TopicName topicName) throws TopicPoliciesCacheNotInitException {
+        return getTopicPolicies(topicName, false);
+    }
+
+    @Override
+    public TopicPolicies getTopicPolicies(TopicName topicName,
+                                          boolean isGlobal) throws TopicPoliciesCacheNotInitException {
         if (!policyCacheInitMap.containsKey(topicName.getNamespaceObject())) {
             NamespaceName namespace = topicName.getNamespaceObject();
             prepareInitPoliciesCache(namespace, new CompletableFuture<>());
@@ -187,7 +203,8 @@ public class SystemTopicBasedTopicPoliciesService implements TopicPoliciesServic
                 && !policyCacheInitMap.get(topicName.getNamespaceObject())) {
             throw new TopicPoliciesCacheNotInitException();
         }
-        return policiesCache.get(TopicName.get(topicName.getPartitionedTopicName()));
+        return isGlobal ? globalPoliciesCache.get(TopicName.get(topicName.getPartitionedTopicName()))
+                : policiesCache.get(TopicName.get(topicName.getPartitionedTopicName()));
     }
 
     @Override
@@ -385,7 +402,12 @@ public class SystemTopicBasedTopicPoliciesService implements TopicPoliciesServic
     private void refreshTopicPoliciesCache(Message<PulsarEvent> msg) {
         // delete policies
         if (msg.getValue() == null) {
-            policiesCache.remove(TopicName.get(TopicName.get(msg.getKey()).getPartitionedTopicName()));
+            TopicName topicName = TopicName.get(TopicName.get(msg.getKey()).getPartitionedTopicName());
+            if (hasReplicateTo(msg)) {
+                globalPoliciesCache.remove(topicName);
+            } else {
+                policiesCache.remove(topicName);
+            }
             return;
         }
         if (EventType.TOPIC_POLICY.equals(msg.getValue().getEventType())) {
@@ -394,13 +416,19 @@ public class SystemTopicBasedTopicPoliciesService implements TopicPoliciesServic
                     TopicName.get(event.getDomain(), event.getTenant(), event.getNamespace(), event.getTopic());
             switch (msg.getValue().getActionType()) {
                 case INSERT:
-                    TopicPolicies old = policiesCache.putIfAbsent(topicName, event.getPolicies());
+                    TopicPolicies old = event.getPolicies().isGlobalPolicies()
+                            ? globalPoliciesCache.putIfAbsent(topicName, event.getPolicies())
+                            : policiesCache.putIfAbsent(topicName, event.getPolicies());
                     if (old != null) {
                         log.warn("Policy insert failed, the topic: {}' policy already exist", topicName);
                     }
                     break;
                 case UPDATE:
-                    policiesCache.put(topicName, event.getPolicies());
+                    if (event.getPolicies().isGlobalPolicies()) {
+                        globalPoliciesCache.put(topicName, event.getPolicies());
+                    } else {
+                        policiesCache.put(topicName, event.getPolicies());
+                    }
                     break;
                 case DELETE:
                     // Since PR #11928, this branch is no longer needed.
@@ -430,6 +458,16 @@ public class SystemTopicBasedTopicPoliciesService implements TopicPoliciesServic
                     break;
             }
         }
+    }
+
+    private static boolean hasReplicateTo(Message<?> message) {
+        if (message instanceof MessageImpl) {
+            return ((MessageImpl<?>) message).hasReplicateTo();
+        }
+        if (message instanceof TopicMessageImpl) {
+            return hasReplicateTo(((TopicMessageImpl<?>) message).getMessage());
+        }
+        return false;
     }
 
     private void createSystemTopicFactoryIfNeeded() throws PulsarServerException {
