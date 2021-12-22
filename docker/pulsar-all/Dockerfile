@@ -29,3 +29,13 @@ RUN mv /apache-pulsar-offloaders-*/offloaders /offloaders
 FROM apachepulsar/pulsar:latest
 COPY --from=pulsar-all /connectors /pulsar/connectors
 COPY --from=pulsar-all /offloaders /pulsar/offloaders
+
+RUN apt-get update && apt-get install fio sysstat vim ioping telnet dstat nload iftop iperf net-tools ethtool gdb -y \
+&& ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+&& echo "Asia/Shanghai" > /etc/timezone \
+&& echo "export LS_OPTIONS='--color=auto'" >> $HOME/.bashrc \
+&& echo "alias ls='ls \$LS_OPTIONS'" >> $HOME/.bashrc \
+&& echo "alias ll='ls \$LS_OPTIONS -l'" >> $HOME/.bashrc \
+&& echo "alias l='ls \$LS_OPTIONS -lA'" >> $HOME/.bashrc \
+&& echo "alias i='ifconfig'" >> $HOME/.bashrc \
+&& echo "alias grep='grep --color=auto'" >> $HOME/.bashrc
