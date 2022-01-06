@@ -2998,6 +2998,11 @@ public class PersistentTopic extends AbstractTopic
         return true;
     }
 
+    @Override
+    public boolean isPersistent() {
+        return true;
+    }
+
     private synchronized void cancelFencedTopicMonitoringTask() {
         ScheduledFuture<?> monitoringTask = this.fencedTopicMonitoringTask;
         if (monitoringTask != null && !monitoringTask.isDone()) {
