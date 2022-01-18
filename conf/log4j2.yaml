@@ -61,7 +61,7 @@ Configuration:
       name: RollingFile
       fileName: "${sys:pulsar.log.dir}/${sys:pulsar.log.file}"
       filePattern: "${sys:pulsar.log.dir}/${sys:pulsar.log.file}-%d{MM-dd-yyyy}-%i.log.gz"
-      immediateFlush: false
+      immediateFlush: true
       PatternLayout:
         Pattern: "%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"
       Policies:
@@ -134,7 +134,6 @@ Configuration:
       additivity: true
       AppenderRef:
         - ref: "${sys:pulsar.log.appender}"
-          level: "${sys:pulsar.log.level}"
         - ref: Prometheus
           level: info
 

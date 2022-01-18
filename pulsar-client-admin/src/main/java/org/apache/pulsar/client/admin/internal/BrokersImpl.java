@@ -415,4 +415,25 @@ public class BrokersImpl extends BaseResource implements Brokers {
             throw new PulsarAdminException.TimeoutException(e);
         }
     }
+
+    @Override
+    public void updateLoggerLevel(String classname, String level) throws PulsarAdminException {
+        try {
+            updateLoggerLevelAsync(classname, level).
+              get(this.readTimeoutMs, TimeUnit.MILLISECONDS);
+        } catch (ExecutionException e) {
+            throw (PulsarAdminException) e.getCause();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new PulsarAdminException(e);
+        } catch (TimeoutException e) {
+            throw new PulsarAdminException.TimeoutException(e);
+        }
+    }
+
+    @Override
+    public CompletableFuture<Void> updateLoggerLevelAsync(String classname, String level) {
+        WebTarget path = adminBrokers.path("log4j").path(classname).path(level);
+        return asyncPostRequest(path, Entity.entity("", MediaType.APPLICATION_JSON));
+    }
 }
