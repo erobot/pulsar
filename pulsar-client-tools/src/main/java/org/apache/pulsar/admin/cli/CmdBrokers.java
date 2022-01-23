@@ -168,7 +168,7 @@ public class CmdBrokers extends CmdBase {
 
         @Override
         void run() throws Exception {
-            getAdmin().updateLoggerLevel(classname, level);
+            getAdmin().brokers().updateLoggerLevel(classname, level);
         }
     }
 

@@ -43,7 +43,6 @@ import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.container.Suspended;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
-import org.apache.bookkeeper.util.ZkUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.config.Configurator;
@@ -504,12 +503,14 @@ public class BrokersBase extends PulsarWebResource {
             if (level != null && className != null) {
                 Level originLevel = LogManager.getLogger(className).getLevel();
                 Configurator.setAllLevels(className, level);
-                LOG.info("[{}] Successfully update log level for className: {} ({} -> {}.)", clientAppId(), className, originLevel, level);
+                LOG.info("[{}] Successfully update log level for className: {} ({} -> {}.)",
+                  clientAppId(), className, originLevel, level);
             } else {
                 LOG.error("[{}] Failed to update log level for {}", clientAppId(), className);
             }
         } catch (RestException re) {
-            LOG.error("[{}] Failed to update log level for className: {}, targetLevel: {} due to rest exception.", clientAppId(), targetClassName, targetLevel);
+            LOG.error("[{}] Failed to update log level for className: {}, targetLevel: {} due to rest exception.",
+              clientAppId(), targetClassName, targetLevel);
             throw re;
         } catch (Exception ie) {
             LOG.error("[{}] Failed to update log level for {} to {} due to internal error.",
@@ -522,7 +523,7 @@ public class BrokersBase extends PulsarWebResource {
     @POST
     @Path("/log4j/{classname}/{level}")
     @ApiOperation(value =
-      "update dynamic log4j2 logger level in runtime by classname. This operation requires Pulsar super-user privileges.")
+      "update dynamic log4j2 logger level in runtime. This operation requires Pulsar super-user privileges.")
     @ApiResponses(value = {
       @ApiResponse(code = 204, message = "class logger level updated successfully"),
       @ApiResponse(code = 403, message = "You don't have admin permission to update log4j2 logger level."),
