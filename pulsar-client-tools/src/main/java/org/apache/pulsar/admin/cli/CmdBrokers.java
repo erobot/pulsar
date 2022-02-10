@@ -135,6 +135,25 @@ public class CmdBrokers extends CmdBase {
 
     }
 
+    @Parameters(commandDescription = "Shutdown broker gracefully.")
+    private class ShutDownBrokerGracefully extends CliCommand {
+
+        @Parameter(names = {"--max-concurrent-unload-per-sec", "-m"},
+                description = "Max concurrent unload per second, "
+                        + "if the value absent(value=0) means no concurrent limitation")
+        private int maxConcurrentUnloadPerSec;
+
+        @Parameter(names = {"--forced-terminate-topic", "-f"}, description = "Force terminate all topics on Broker")
+        private boolean forcedTerminateTopic;
+
+        @Override
+        void run() throws Exception {
+            getAdmin().brokers().shutDownBrokerGracefully(maxConcurrentUnloadPerSec, forcedTerminateTopic);
+            System.out.println("Successfully trigger broker shutdown gracefully");
+        }
+
+    }
+
     @Parameters(commandDescription = "Manually trigger backlogQuotaCheck")
     private class BacklogQuotaCheckCmd extends CliCommand {
 
@@ -183,5 +202,6 @@ public class CmdBrokers extends CmdBase {
         jcommander.addCommand("backlog-quota-check", new BacklogQuotaCheckCmd());
         jcommander.addCommand("version", new PulsarVersion());
         jcommander.addCommand("update-logger-level", new UpdateLoggerLevelCmd());
+        jcommander.addCommand("shutdown", new ShutDownBrokerGracefully());
     }
 }

@@ -159,6 +159,7 @@ import org.apache.pulsar.common.protocol.schema.SchemaVersion;
 import org.apache.pulsar.common.stats.Metrics;
 import org.apache.pulsar.common.util.FieldParser;
 import org.apache.pulsar.common.util.FutureUtil;
+import org.apache.pulsar.common.util.RateLimiter;
 import org.apache.pulsar.common.util.ObjectMapperFactory;
 import org.apache.pulsar.common.util.RestException;
 import org.apache.pulsar.common.util.collections.ConcurrentOpenHashMap;
@@ -822,6 +823,10 @@ public class BrokerService implements Closeable, ZooKeeperCacheListener<Policies
      * </ul>
      */
     public void unloadNamespaceBundlesGracefully() {
+        unloadNamespaceBundlesGracefully(0, true);
+    }
+
+    public void unloadNamespaceBundlesGracefully(int maxConcurrentUnload, boolean closeWithoutWaitingClientDisconnect) {
         try {
             log.info("Unloading namespace-bundles...");
             // make broker-node unavailable from the cluster
@@ -847,6 +852,25 @@ public class BrokerService implements Closeable, ZooKeeperCacheListener<Policies
                         }
                     }
                 });
+                try (RateLimiter rateLimiter = maxConcurrentUnload > 0 ? RateLimiter.builder()
+                        .scheduledExecutorService(pulsar.getExecutor())
+                        .rateTime(1).timeUnit(TimeUnit.SECONDS)
+                        .permits(maxConcurrentUnload).build() : null) {
+                    serviceUnits.forEach(su -> {
+                        if (su != null) {
+                            try {
+                                if (rateLimiter != null) {
+                                    rateLimiter.acquire(1);
+                                }
+                                pulsar.getNamespaceService().unloadNamespaceBundle(su, pulsar.getConfiguration()
+                                                .getNamespaceBundleUnloadingTimeoutMs(), TimeUnit.MILLISECONDS,
+                                        closeWithoutWaitingClientDisconnect).get();
+                            } catch (Exception e) {
+                                log.warn("Failed to unload namespace bundle {}", su, e);
+                            }
+                        }
+                    });
+                }
             }
 
             double closeTopicsTimeSeconds = TimeUnit.NANOSECONDS.toMillis((System.nanoTime() - closeTopicsStartTime))
