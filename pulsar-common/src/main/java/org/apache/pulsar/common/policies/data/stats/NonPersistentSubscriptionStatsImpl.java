@@ -22,6 +22,9 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.Objects;
 import lombok.Getter;
 import org.apache.pulsar.common.policies.data.NonPersistentSubscriptionStats;
+import lombok.Getter;
+
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Statistics for subscription to non-persistent topics.
