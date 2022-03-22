@@ -21,11 +21,11 @@
 
 PULSAR_DEPLOY_DIR=$1
 PULSAR_SOURCE_DIR=`pwd`
-PULSAR_VERSION=2.7.3
+PULSAR_VERSION=2.8.2
 
 
 # maven build project
-mvn install -DskipTests
+mvn clean install -DskipTests
 if [ $? -eq 0 ]; then
     echo "maven build succeed."
 else
@@ -35,14 +35,13 @@ fi
 
 if [ "${PULSAR_DEPLOY_DIR}x" = "x" ];
     then
-    echo "if you want deploy pulsar, please set depoly dir first."
+    echo "if you want deploy pulsar, please set deploy dir first."
     exit 1
 fi
 
 # copy pulsar-src-code to deploy dir
-# apache-pulsar-2.7.3-SNAPHOT-bin.tar.gz
-tar xfz $PULSAR_SOURCE_DIR/distribution/server/target/apache-pulsar-$PULSAR_VERSION-SNAPHOT-bin.tar.gz -C $PULSAR_SOURCE_DIR/distribution/server/target
-cp -ri $PULSAR_SOURCE_DIR/distribution/server/target/apache-pulsar-$PULSAR_VERSION-SNAPHOT $PULSAR_DEPLOY_DIR/pulsar
+tar xfz $PULSAR_SOURCE_DIR/distribution/server/target/apache-pulsar-$PULSAR_VERSION-bin.tar.gz -C $PULSAR_SOURCE_DIR/distribution/server/target
+cp -ri $PULSAR_SOURCE_DIR/distribution/server/target/apache-pulsar-$PULSAR_VERSION $PULSAR_DEPLOY_DIR/pulsar
 
 
 # generate conf tql
@@ -59,17 +58,16 @@ cp $PULSAR_SOURCE_DIR/docker/pulsar/scripts/gen-yml-from-env.py $PULSAR_DEPLOY_D
 cp $PULSAR_SOURCE_DIR/docker/pulsar/scripts/generate-zookeeper-config.sh $PULSAR_DEPLOY_DIR/pulsar/bin
 cp $PULSAR_SOURCE_DIR/docker/pulsar/scripts/pulsar-zookeeper-ruok.sh $PULSAR_DEPLOY_DIR/pulsar/bin
 cp $PULSAR_SOURCE_DIR/docker/pulsar/scripts/watch-znode.py $PULSAR_DEPLOY_DIR/pulsar/bin
-cp $PULSAR_SOURCE_DIR/docker/pulsar/scripts/set_python_version.sh $PULSAR_DEPLOY_DIR/pulsar/bin
-cp $PULSAR_SOURCE_DIR/docker/pulsar/scripts/install-pulsar-client-37.sh $PULSAR_DEPLOY_DIR/pulsar/bin
 
 # add offloaders
-tar xfz $PULSAR_SOURCE_DIR/distribution/offloaders/target/apache-pulsar-offloaders-$PULSAR_VERSION-SNAPHOT-bin.tar.gz -C $PULSAR_SOURCE_DIR/distribution/offloaders/target
-cp -ri $PULSAR_SOURCE_DIR/distribution/offloaders/target/apache-pulsar-offloaders-$PULSAR_VERSION-SNAPHOT $PULSAR_DEPLOY_DIR/pulsar/offloaders
+tar xfz $PULSAR_SOURCE_DIR/distribution/offloaders/target/apache-pulsar-offloaders-$PULSAR_VERSION-bin.tar.gz -C $PULSAR_SOURCE_DIR/distribution/offloaders/target
+cp -ri $PULSAR_SOURCE_DIR/distribution/offloaders/target/apache-pulsar-offloaders-$PULSAR_VERSION $PULSAR_DEPLOY_DIR/pulsar/offloaders
 
 # add connectors
-cp -ri $PULSAR_SOURCE_DIR/distribution/io/target/apache-pulsar-io-connectors-$PULSAR_VERSION-SNAPHOT-bin $PULSAR_DEPLOY_DIR/pulsar/connectors
+cp -ri $PULSAR_SOURCE_DIR/distribution/io/target/apache-pulsar-io-connectors-$PULSAR_VERSION-bin $PULSAR_DEPLOY_DIR/pulsar/connectors
 
 
 #maybe useless, ignore
-#cpp-client init
-#python-client init
+# cpp-client : no need at 2.8.2 : https://github.com/apache/pulsar/pull/9811
+# python-client : python-client will generate after ./docker/build.sh which config in docker/pulsar/pom.xml
+
