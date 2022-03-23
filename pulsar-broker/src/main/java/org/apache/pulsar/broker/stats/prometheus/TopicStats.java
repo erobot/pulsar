@@ -263,7 +263,7 @@ class TopicStats {
             metric(stream, cluster, namespace, topic, n, "pulsar_subscription_total_msg_expired",
                     subsStats.totalMsgExpired, splitTopicAndPartitionIndexLabel);
             metric(stream, cluster, namespace, topic, n, "pulsar_subscription_msg_drop_rate",
-                    subsStats.msgDropRate, splitTopicAndPartitionIndexLabel);
+              subsStats.msgDropRate, splitTopicAndPartitionIndexLabel);
             subsStats.consumerStat.forEach((c, consumerStats) -> {
                 metric(stream, cluster, namespace, topic, n, c.consumerName(), c.consumerId(),
                         "pulsar_consumer_msg_rate_redeliver", consumerStats.msgRateRedeliver,

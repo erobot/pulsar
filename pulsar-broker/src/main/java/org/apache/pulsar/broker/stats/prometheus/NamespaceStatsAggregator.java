@@ -30,6 +30,8 @@ import org.apache.pulsar.broker.PulsarService;
 import org.apache.pulsar.broker.service.Topic;
 import org.apache.pulsar.broker.service.persistent.PersistentTopic;
 import org.apache.pulsar.common.policies.data.BacklogQuota;
+import org.apache.pulsar.common.policies.data.NonPersistentTopicStats;
+import org.apache.pulsar.common.policies.data.SubscriptionStats;
 import org.apache.pulsar.common.policies.data.stats.ConsumerStatsImpl;
 import org.apache.pulsar.common.policies.data.stats.ReplicatorStatsImpl;
 import org.apache.pulsar.common.policies.data.stats.TopicStatsImpl;
@@ -112,26 +114,26 @@ public class NamespaceStatsAggregator {
     private static void aggregateTopicStats(TopicStats stats, SubscriptionStats subscriptionStats,
                                             AggregatedSubscriptionStats subsStats) {
         stats.subscriptionsCount++;
-        stats.msgBacklog += subscriptionStats.msgBacklog;
-        subsStats.msgBacklog = subscriptionStats.msgBacklog;
-        subsStats.msgDelayed = subscriptionStats.msgDelayed;
-        subsStats.msgRateExpired = subscriptionStats.msgRateExpired;
-        subsStats.totalMsgExpired = subscriptionStats.totalMsgExpired;
+        stats.msgBacklog += subscriptionStats.getMsgBacklog();
+        subsStats.msgBacklog = subscriptionStats.getMsgBacklog();
+        subsStats.msgDelayed = subscriptionStats.getMsgDelayed();
+        subsStats.msgRateExpired = subscriptionStats.getMsgRateExpired();
+        subsStats.totalMsgExpired = subscriptionStats.getTotalMsgExpired();
         subsStats.msgBacklogNoDelayed = subsStats.msgBacklog - subsStats.msgDelayed;
-        subsStats.lastExpireTimestamp = subscriptionStats.lastExpireTimestamp;
-        subsStats.lastAckedTimestamp = subscriptionStats.lastAckedTimestamp;
-        subsStats.lastConsumedFlowTimestamp = subscriptionStats.lastConsumedFlowTimestamp;
-        subsStats.lastConsumedTimestamp = subscriptionStats.lastConsumedTimestamp;
-        subsStats.lastMarkDeleteAdvancedTimestamp = subscriptionStats.lastMarkDeleteAdvancedTimestamp;
-        subscriptionStats.consumers.forEach(cStats -> {
+        subsStats.lastExpireTimestamp = subscriptionStats.getLastExpireTimestamp();
+        subsStats.lastAckedTimestamp = subscriptionStats.getLastAckedTimestamp();
+        subsStats.lastConsumedFlowTimestamp = subscriptionStats.getLastConsumedFlowTimestamp();
+        subsStats.lastConsumedTimestamp = subscriptionStats.getLastConsumedTimestamp();
+        subsStats.lastMarkDeleteAdvancedTimestamp = subscriptionStats.getLastMarkDeleteAdvancedTimestamp();
+        subscriptionStats.getConsumers().forEach(cStats -> {
             stats.consumersCount++;
-            subsStats.unackedMessages += cStats.unackedMessages;
-            subsStats.msgRateRedeliver += cStats.msgRateRedeliver;
-            subsStats.msgRateOut += cStats.msgRateOut;
-            subsStats.msgThroughputOut += cStats.msgThroughputOut;
-            subsStats.bytesOutCounter += cStats.bytesOutCounter;
-            subsStats.msgOutCounter += cStats.msgOutCounter;
-            if (!subsStats.blockedSubscriptionOnUnackedMsgs && cStats.blockedConsumerOnUnackedMsgs) {
+            subsStats.unackedMessages += cStats.getUnackedMessages();
+            subsStats.msgRateRedeliver += cStats.getMsgRateRedeliver();
+            subsStats.msgRateOut += cStats.getMsgRateOut();
+            subsStats.msgThroughputOut += cStats.getMsgThroughputOut();
+            subsStats.bytesOutCounter += cStats.getBytesOutCounter();
+            subsStats.msgOutCounter += cStats.getMsgOutCounter();
+            if (!subsStats.blockedSubscriptionOnUnackedMsgs && cStats.isBlockedConsumerOnUnackedMsgs()) {
                 subsStats.blockedSubscriptionOnUnackedMsgs = true;
             }
         });
