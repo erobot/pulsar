@@ -1707,6 +1707,13 @@ public class ServiceConfiguration implements PulsarConfiguration {
     private int loadBalancerBrokerMaxTopics = 50000;
 
     @FieldContext(
+            category = CATEGORY_LOAD_BALANCER,
+            doc = "load balance load manager strategy"
+    )
+    private String loadBalancerLoadManagerStrategy =
+            "org.apache.pulsar.broker.loadbalance.impl.LeastLongTermMessageRate";
+
+    @FieldContext(
         dynamic = true,
         category = CATEGORY_LOAD_BALANCER,
         doc = "Usage threshold to determine a broker as over-loaded"
