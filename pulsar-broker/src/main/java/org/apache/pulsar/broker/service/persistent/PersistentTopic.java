@@ -596,14 +596,15 @@ public class PersistentTopic extends AbstractTopic
     }
 
     private boolean hasRemoteProducers() {
-        AtomicBoolean foundRemote = new AtomicBoolean(false);
-        producers.values().forEach(producer -> {
+        if (producers.isEmpty()) {
+            return false;
+        }
+        for (Producer producer : producers.values()) {
             if (producer.isRemote()) {
-                foundRemote.set(true);
+                return true;
             }
-        });
-
-        return foundRemote.get();
+        }
+        return false;
     }
 
     public void startReplProducers() {
@@ -750,7 +751,7 @@ public class PersistentTopic extends AbstractTopic
                 getDurableSubscription(subscriptionName, initialPosition, startMessageRollbackDurationSec,
                         replicatedSubscriptionState)
                 : getNonDurableSubscription(subscriptionName, startMessageId, initialPosition,
-                startMessageRollbackDurationSec);
+                startMessageRollbackDurationSec, readCompacted);
 
         int maxUnackedMessages = isDurable
                 ? getMaxUnackedMessagesOnConsumer()
@@ -895,7 +896,8 @@ public class PersistentTopic extends AbstractTopic
     }
 
     private CompletableFuture<? extends Subscription> getNonDurableSubscription(String subscriptionName,
-            MessageId startMessageId, InitialPosition initialPosition, long startMessageRollbackDurationSec) {
+            MessageId startMessageId, InitialPosition initialPosition, long startMessageRollbackDurationSec,
+            boolean isReadCompacted) {
         log.info("[{}][{}] Creating non-durable subscription at msg id {}", topic, subscriptionName, startMessageId);
 
         CompletableFuture<Subscription> subscriptionFuture = new CompletableFuture<>();
@@ -928,7 +930,8 @@ public class PersistentTopic extends AbstractTopic
                 Position startPosition = new PositionImpl(ledgerId, entryId);
                 ManagedCursor cursor = null;
                 try {
-                    cursor = ledger.newNonDurableCursor(startPosition, subscriptionName, initialPosition);
+                    cursor = ledger.newNonDurableCursor(startPosition, subscriptionName, initialPosition,
+                            isReadCompacted);
                 } catch (ManagedLedgerException e) {
                     return FutureUtil.failedFuture(e);
                 }
@@ -978,27 +981,32 @@ public class PersistentTopic extends AbstractTopic
     @Override
     public CompletableFuture<Void> unsubscribe(String subscriptionName) {
         CompletableFuture<Void> unsubscribeFuture = new CompletableFuture<>();
-        getBrokerService().getManagedLedgerFactory().asyncDelete(TopicName.get(MLPendingAckStore
-                .getTransactionPendingAckStoreSuffix(topic,
-                        Codec.encode(subscriptionName))).getPersistenceNamingEncoding(),
-                new AsyncCallbacks.DeleteLedgerCallback() {
-            @Override
-            public void deleteLedgerComplete(Object ctx) {
-                asyncDeleteCursor(subscriptionName, unsubscribeFuture);
-            }
 
-            @Override
-            public void deleteLedgerFailed(ManagedLedgerException exception, Object ctx) {
-                if (exception instanceof MetadataNotFoundException) {
-                    asyncDeleteCursor(subscriptionName, unsubscribeFuture);
-                    return;
-                }
+        if (brokerService.pulsar().getConfiguration().isTransactionCoordinatorEnabled()) {
+            getBrokerService().getManagedLedgerFactory().asyncDelete(TopicName.get(MLPendingAckStore
+                            .getTransactionPendingAckStoreSuffix(topic,
+                                    Codec.encode(subscriptionName))).getPersistenceNamingEncoding(),
+                    new AsyncCallbacks.DeleteLedgerCallback() {
+                        @Override
+                        public void deleteLedgerComplete(Object ctx) {
+                            asyncDeleteCursor(subscriptionName, unsubscribeFuture);
+                        }
 
-                unsubscribeFuture.completeExceptionally(exception);
-                log.error("[{}][{}] Error deleting subscription pending ack store",
-                        topic, subscriptionName, exception);
-            }
-        }, null);
+                        @Override
+                        public void deleteLedgerFailed(ManagedLedgerException exception, Object ctx) {
+                            if (exception instanceof MetadataNotFoundException) {
+                                asyncDeleteCursor(subscriptionName, unsubscribeFuture);
+                                return;
+                            }
+
+                            unsubscribeFuture.completeExceptionally(exception);
+                            log.error("[{}][{}] Error deleting subscription pending ack store",
+                                    topic, subscriptionName, exception);
+                        }
+                    }, null);
+        } else {
+            asyncDeleteCursor(subscriptionName, unsubscribeFuture);
+        }
 
         return unsubscribeFuture;
     }
@@ -1974,8 +1982,9 @@ public class PersistentTopic extends AbstractTopic
         stats.state = ml.getState().toString();
 
         stats.ledgers = Lists.newArrayList();
-        List<CompletableFuture<String>> futures = includeLedgerMetadata ? Lists.newArrayList() : null;
+        List<CompletableFuture<String>> futures = Lists.newArrayList();
         CompletableFuture<Set<String>> availableBookiesFuture = brokerService.pulsar().getAvailableBookiesAsync();
+        futures.add(availableBookiesFuture.handle((strings, throwable) -> null));
         availableBookiesFuture.whenComplete((bookies, e) -> {
             if (e != null) {
                 log.error("[{}] Failed to fetch available bookies.", topic, e);
@@ -1988,7 +1997,7 @@ public class PersistentTopic extends AbstractTopic
                     info.size = li.getSize();
                     info.offloaded = li.hasOffloadContext() && li.getOffloadContext().getComplete();
                     stats.ledgers.add(info);
-                    if (futures != null) {
+                    if (includeLedgerMetadata) {
                         futures.add(ml.getLedgerMetadata(li.getLedgerId()).handle((lMetadata, ex) -> {
                             if (ex == null) {
                                 info.metadata = lMetadata;

@@ -99,7 +99,7 @@ else() # GCC or Clang are mostly compatible:
     # Options unique to Clang or GCC:
     if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         add_compile_options(-Qunused-arguments) 
-    elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.9))
+    elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 8.1))
         add_compile_options(-Wno-stringop-truncation)
     endif()
 endif()
@@ -332,6 +332,7 @@ file(MAKE_DIRECTORY ${AUTOGEN_DIR})
 include_directories(
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/include
+  ${CMAKE_BINARY_DIR}/include
   ${AUTOGEN_DIR}
   ${Boost_INCLUDE_DIR}
   ${OPENSSL_INCLUDE_DIR}
@@ -443,7 +444,8 @@ add_custom_target(format python ${BUILD_SUPPORT_DIR}/run_clang_format.py
         ${CMAKE_SOURCE_DIR}/perf
         ${CMAKE_SOURCE_DIR}/examples
         ${CMAKE_SOURCE_DIR}/tests
-        ${CMAKE_SOURCE_DIR}/include)
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/python/src)
 
 # `make check-format` option (for CI test)
 add_custom_target(check-format python ${BUILD_SUPPORT_DIR}/run_clang_format.py
@@ -454,4 +456,5 @@ add_custom_target(check-format python ${BUILD_SUPPORT_DIR}/run_clang_format.py
         ${CMAKE_SOURCE_DIR}/perf
         ${CMAKE_SOURCE_DIR}/examples
         ${CMAKE_SOURCE_DIR}/tests
-        ${CMAKE_SOURCE_DIR}/include)
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/python/src)

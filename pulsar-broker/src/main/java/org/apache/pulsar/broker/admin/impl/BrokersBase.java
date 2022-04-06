@@ -43,6 +43,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.pulsar.PulsarVersion;
+import org.apache.pulsar.broker.PulsarServerException;
 import org.apache.pulsar.broker.PulsarService.State;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.broker.loadbalance.LeaderBroker;
@@ -70,6 +71,7 @@ import org.slf4j.LoggerFactory;
 public class BrokersBase extends PulsarWebResource {
     private static final Logger LOG = LoggerFactory.getLogger(BrokersBase.class);
     private static final Duration HEALTHCHECK_READ_TIMEOUT = Duration.ofSeconds(10);
+    public static final String HEALTH_CHECK_TOPIC_SUFFIX = "healthcheck";
 
     @GET
     @Path("/{cluster}")
@@ -302,13 +304,19 @@ public class BrokersBase extends PulsarWebResource {
         @ApiResponse(code = 404, message = "Cluster doesn't exist"),
         @ApiResponse(code = 500, message = "Internal server error")})
     public void healthcheck(@Suspended AsyncResponse asyncResponse) throws Exception {
-        validateSuperUserAccess();
-        String heartbeatNamespace = NamespaceService.getHeartbeatNamespace(
-                pulsar().getAdvertisedAddress(), pulsar().getConfiguration());
-        String topic = String.format("persistent://%s/healthcheck", heartbeatNamespace);
-
-        PulsarClient client = pulsar().getClient();
-
+        String topic;
+        PulsarClient client;
+        try {
+            validateSuperUserAccess();
+            String heartbeatNamespace = NamespaceService.getHeartbeatNamespace(
+                    pulsar().getAdvertisedAddress(), pulsar().getConfiguration());
+            topic = String.format("persistent://%s/%s", heartbeatNamespace, HEALTH_CHECK_TOPIC_SUFFIX);
+            LOG.info("Running healthCheck with topic={}", topic);
+            client = pulsar().getClient();
+        } catch (Exception e) {
+            LOG.error("Error getting heathcheck topic info", e);
+            throw new PulsarServerException(e);
+        }
         String messageStr = UUID.randomUUID().toString();
         // create non-partitioned topic manually and close the previous reader if present.
         try {

@@ -26,7 +26,6 @@ import com.google.common.collect.Iterables;
 import com.scurrilous.circe.checksum.Crc32cIntChecksum;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.Recycler;
 import io.netty.util.Recycler.Handle;
@@ -582,9 +581,9 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                 propertiesMap.put(RetryMessageUtil.SYSTEM_PROPERTY_RECONSUMETIMES, String.valueOf(reconsumetimes));
                 propertiesMap.put(RetryMessageUtil.SYSTEM_PROPERTY_DELAY_TIME, String.valueOf(unit.toMillis(delayTime)));
 
+                MessageId finalMessageId = messageId;
                 if (reconsumetimes > this.deadLetterPolicy.getMaxRedeliverCount() && StringUtils.isNotBlank(deadLetterPolicy.getDeadLetterTopic())) {
                     initDeadLetterProducerIfNeeded();
-                    MessageId finalMessageId = messageId;
                     deadLetterProducer.thenAccept(dlqProducer -> {
                         TypedMessageBuilder<byte[]> typedMessageBuilderNew =
                                 dlqProducer.newMessage(Schema.AUTO_PRODUCE_BYTES(retryMessage.getReaderSchema().get()))
@@ -616,8 +615,12 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                     if (message.hasKey()) {
                         typedMessageBuilderNew.key(message.getKey());
                     }
-                    typedMessageBuilderNew.send();
-                    return doAcknowledge(messageId, ackType, properties, null);
+                    typedMessageBuilderNew.sendAsync()
+                            .thenAccept(__ -> doAcknowledge(finalMessageId, ackType, properties, null).thenAccept(v -> result.complete(null)))
+                            .exceptionally(ex -> {
+                                result.completeExceptionally(ex);
+                                return null;
+                            });
                 }
             } catch (Exception e) {
                 log.error("Send to retry letter topic exception with topic: {}, messageId: {}", retryLetterProducer.getTopic(), messageId, e);
@@ -1082,8 +1085,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
 
             uncompressedPayload.release();
         }
-        internalPinnedExecutor.execute(()
-                -> tryTriggerListener());
+        tryTriggerListener();
 
     }
 
@@ -1110,7 +1112,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         }
 
         if (msgMetadata.getChunkId() == 0) {
-            ByteBuf chunkedMsgBuffer = Unpooled.directBuffer(msgMetadata.getTotalChunkMsgSize(),
+            ByteBuf chunkedMsgBuffer = PulsarByteBufAllocator.DEFAULT.buffer(msgMetadata.getTotalChunkMsgSize(),
                     msgMetadata.getTotalChunkMsgSize());
             int totalChunks = msgMetadata.getNumChunksFromMsg();
             chunkedMessagesMap.computeIfAbsent(msgMetadata.getUuid(),
@@ -1654,18 +1656,17 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             return CompletableFuture.completedFuture(Collections.emptyList());
         }
         List<MessageIdData> data = new ArrayList<>(messageIds.size());
-        List<CompletableFuture<Boolean>> futures = new ArrayList<>(messageIds.size());
+        List<CompletableFuture<Void>> futures = new ArrayList<>(messageIds.size());
         messageIds.forEach(messageId -> {
             CompletableFuture<Boolean> future = processPossibleToDLQ(messageId);
-            futures.add(future);
-            future.thenAccept(sendToDLQ -> {
+            futures.add(future.thenAccept(sendToDLQ -> {
                 if (!sendToDLQ) {
                     data.add(new MessageIdData()
                             .setPartition(messageId.getPartitionIndex())
                             .setLedgerId(messageId.getLedgerId())
                             .setEntryId(messageId.getEntryId()));
                 }
-            });
+            }));
         });
         return FutureUtil.waitForAll(futures).thenCompose(v -> CompletableFuture.completedFuture(data));
     }

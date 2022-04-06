@@ -1030,11 +1030,12 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
 
     @Override
     public ManagedCursor newNonDurableCursor(Position startPosition, String subscriptionName) throws ManagedLedgerException {
-        return newNonDurableCursor(startPosition, subscriptionName, InitialPosition.Latest);
+        return newNonDurableCursor(startPosition, subscriptionName, InitialPosition.Latest, false);
     }
 
     @Override
-    public ManagedCursor newNonDurableCursor(Position startCursorPosition, String cursorName, InitialPosition initialPosition)
+    public ManagedCursor newNonDurableCursor(Position startCursorPosition, String cursorName, InitialPosition initialPosition,
+                                             boolean isReadCompacted)
             throws ManagedLedgerException {
         Objects.requireNonNull(cursorName, "cursor name can't be null");
         checkManagedLedgerIsOpen();
@@ -1049,7 +1050,7 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
         }
 
         NonDurableCursorImpl cursor = new NonDurableCursorImpl(bookKeeper, config, this, cursorName,
-                (PositionImpl) startCursorPosition, initialPosition);
+                (PositionImpl) startCursorPosition, initialPosition, isReadCompacted);
         cursor.setActive();
 
         log.info("[{}] Opened new cursor: {}", name, cursor);
@@ -1607,7 +1608,10 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
             STATE_UPDATER.set(this, State.CreatingLedger);
             this.lastLedgerCreationInitiationTimestamp = System.currentTimeMillis();
             mbean.startDataLedgerCreateOp();
-            asyncCreateLedger(bookKeeper, config, digestType, this, Collections.emptyMap());
+            // Use the executor here is to avoid use the Zookeeper thread to create the ledger which will lead
+            // to deadlock at the zookeeper client, details to see https://github.com/apache/pulsar/issues/13736
+            this.executor.execute(() ->
+                    asyncCreateLedger(bookKeeper, config, digestType, this, Collections.emptyMap()));
         }
     }
 
@@ -1840,21 +1844,19 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
         if (log.isDebugEnabled()) {
             log.debug("[{}] Reading entry ledger {}: {}", name, position.getLedgerId(), position.getEntryId());
         }
-        if (!ledgers.containsKey(position.getLedgerId())) {
-            log.error("[{}] Failed to get message with ledger {}:{} the ledgerId does not belong to this topic "
-                    + "or has been deleted.", name, position.getLedgerId(), position.getEntryId());
-            callback.readEntryFailed(new ManagedLedgerException.NonRecoverableLedgerException("Message not found, "
-                + "the ledgerId does not belong to this topic or has been deleted"), ctx);
-            return;
-        }
         if (position.getLedgerId() == currentLedger.getId()) {
             asyncReadEntry(currentLedger, position, callback, ctx);
-        } else {
+        } else if (ledgers.containsKey(position.getLedgerId())) {
             getLedgerHandle(position.getLedgerId()).thenAccept(ledger -> asyncReadEntry(ledger, position, callback, ctx)).exceptionally(ex -> {
                 log.error("[{}] Error opening ledger for reading at position {} - {}", name, position, ex.getMessage());
                 callback.readEntryFailed(ManagedLedgerException.getManagedLedgerException(ex.getCause()), ctx);
                 return null;
             });
+        } else {
+            log.error("[{}] Failed to get message with ledger {}:{} the ledgerId does not belong to this topic "
+                    + "or has been deleted.", name, position.getLedgerId(), position.getEntryId());
+            callback.readEntryFailed(new ManagedLedgerException.NonRecoverableLedgerException("Message not found, "
+                    + "the ledgerId does not belong to this topic or has been deleted"), ctx);
         }
 
     }
@@ -3420,6 +3422,10 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
                 nonDurableActiveCursors.removeCursor(cursor.getName());
             }
         }
+    }
+
+    public void removeWaitingCursor(ManagedCursor cursor) {
+        this.waitingCursors.remove(cursor);
     }
 
     public boolean isCursorActive(ManagedCursor cursor) {

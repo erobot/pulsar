@@ -259,7 +259,8 @@ public interface ManagedLedger {
      */
     ManagedCursor newNonDurableCursor(Position startCursorPosition) throws ManagedLedgerException;
     ManagedCursor newNonDurableCursor(Position startPosition, String subscriptionName) throws ManagedLedgerException;
-    ManagedCursor newNonDurableCursor(Position startPosition, String subscriptionName, InitialPosition initialPosition) throws ManagedLedgerException;
+    ManagedCursor newNonDurableCursor(Position startPosition, String subscriptionName, InitialPosition initialPosition,
+                                      boolean isReadCompacted) throws ManagedLedgerException;
 
     /**
      * Delete a ManagedCursor asynchronously.
@@ -286,6 +287,13 @@ public interface ManagedLedger {
      * @throws InterruptedException
      */
     void deleteCursor(String name) throws InterruptedException, ManagedLedgerException;
+
+    /**
+     * Remove a ManagedCursor from this ManagedLedger's waitingCursors.
+     *
+     * @param cursor the ManagedCursor
+     */
+    void removeWaitingCursor(ManagedCursor cursor);
 
     /**
      * Open a ManagedCursor asynchronously.

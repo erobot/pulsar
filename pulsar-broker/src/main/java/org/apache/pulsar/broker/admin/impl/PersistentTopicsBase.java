@@ -56,7 +56,6 @@ import org.apache.bookkeeper.mledger.Entry;
 import org.apache.bookkeeper.mledger.LedgerOffloader;
 import org.apache.bookkeeper.mledger.ManagedLedgerConfig;
 import org.apache.bookkeeper.mledger.ManagedLedgerException;
-import org.apache.bookkeeper.mledger.ManagedLedgerException.MetadataNotFoundException;
 import org.apache.bookkeeper.mledger.ManagedLedgerInfo;
 import org.apache.bookkeeper.mledger.impl.ManagedLedgerFactoryImpl;
 import org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl;
@@ -312,7 +311,7 @@ public class PersistentTopicsBase extends AdminResource {
         try {
             pulsar().getBrokerService().deleteTopic(topicName.toString(), true, deleteSchema).get();
         } catch (Exception e) {
-            if (e.getCause() instanceof MetadataNotFoundException) {
+            if (isManagedLedgerNotFoundException(e)) {
                 log.info("[{}] Topic was already not existing {}", clientAppId(), topicName, e);
             } else {
                 log.error("[{}] Failed to delete topic forcefully {}", clientAppId(), topicName, e);
@@ -1000,7 +999,7 @@ public class PersistentTopicsBase extends AdminResource {
             log.error("[{}] Failed to delete topic {}", clientAppId(), topicName, t);
             if (t instanceof TopicBusyException) {
                 throw new RestException(Status.PRECONDITION_FAILED, "Topic has active producers/subscriptions");
-            } else if (t instanceof MetadataNotFoundException) {
+            } else if (isManagedLedgerNotFoundException(e)) {
                 throw new RestException(Status.NOT_FOUND, "Topic not found");
             } else {
                 throw new RestException(t);
@@ -1107,26 +1106,25 @@ public class PersistentTopicsBase extends AdminResource {
     }
 
     private void internalGetSubscriptionsForNonPartitionedTopic(AsyncResponse asyncResponse, boolean authoritative) {
-        try {
-            validateTopicOwnership(topicName, authoritative);
-            validateTopicOperation(topicName, TopicOperation.GET_SUBSCRIPTIONS);
-
-            Topic topic = getTopicReference(topicName);
-            final List<String> subscriptions = Lists.newArrayList();
-            topic.getSubscriptions().forEach((subName, sub) -> subscriptions.add(subName));
-            asyncResponse.resume(subscriptions);
-        } catch (WebApplicationException wae) {
-            if (log.isDebugEnabled()) {
-                log.debug("[{}] Failed to get subscriptions for non-partitioned topic {},"
-                                + " redirecting to other brokers.",
-                        clientAppId(), topicName, wae);
-            }
-            resumeAsyncResponseExceptionally(asyncResponse, wae);
-            return;
-        } catch (Exception e) {
-            log.error("[{}] Failed to get list of subscriptions for {}", clientAppId(), topicName, e);
-            resumeAsyncResponseExceptionally(asyncResponse, e);
-        }
+        validateTopicOwnershipAsync(topicName, authoritative)
+                .thenCompose(__ -> validateTopicOperationAsync(topicName, TopicOperation.GET_SUBSCRIPTIONS))
+                .thenCompose(__ -> getTopicReferenceAsync(topicName))
+                .thenAccept(topic -> asyncResponse.resume(Lists.newArrayList(topic.getSubscriptions().keys())))
+                .exceptionally(ex -> {
+                    Throwable cause = ex.getCause();
+                    if (cause instanceof WebApplicationException
+                            && ((WebApplicationException) cause).getResponse().getStatus()
+                            == Status.TEMPORARY_REDIRECT.getStatusCode()) {
+                            if (log.isDebugEnabled()) {
+                                log.debug("[{}] Failed to get subscriptions for non-partitioned topic {},"
+                                                + " redirecting to other brokers.", clientAppId(), topicName, cause);
+                            }
+                    } else {
+                        log.error("[{}] Failed to get list of subscriptions for {}", clientAppId(), topicName, cause);
+                    }
+                    resumeAsyncResponseExceptionally(asyncResponse, cause);
+                    return null;
+                });
     }
 
     protected TopicStats internalGetStats(boolean authoritative, boolean getPreciseBacklog,
@@ -1468,35 +1466,38 @@ public class PersistentTopicsBase extends AdminResource {
 
     private void internalDeleteSubscriptionForNonPartitionedTopic(AsyncResponse asyncResponse,
                                                                   String subName, boolean authoritative) {
-        try {
-            validateTopicOwnership(topicName, authoritative);
-            validateTopicOperation(topicName, TopicOperation.UNSUBSCRIBE);
-
-            Topic topic = getTopicReference(topicName);
-            Subscription sub = topic.getSubscription(subName);
-            if (sub == null) {
-                asyncResponse.resume(new RestException(Status.NOT_FOUND, "Subscription not found"));
-                return;
-            }
-            sub.delete().get();
-            log.info("[{}][{}] Deleted subscription {}", clientAppId(), topicName, subName);
-            asyncResponse.resume(Response.noContent().build());
-        } catch (Exception e) {
-            if (e.getCause() instanceof SubscriptionBusyException) {
-                log.error("[{}] Failed to delete subscription {} from topic {}", clientAppId(), subName, topicName, e);
-                asyncResponse.resume(new RestException(Status.PRECONDITION_FAILED,
-                    "Subscription has active connected consumers"));
-            } else if (e instanceof WebApplicationException) {
-                if (log.isDebugEnabled()) {
-                    log.debug("[{}] Failed to delete subscription from topic {}, redirecting to other brokers.",
-                            clientAppId(), topicName, e);
+        validateTopicOwnershipAsync(topicName, authoritative)
+            .thenRun(() -> validateTopicOperation(topicName, TopicOperation.UNSUBSCRIBE))
+            .thenCompose(__ -> {
+                Topic topic = getTopicReference(topicName);
+                Subscription sub = topic.getSubscription(subName);
+                if (sub == null) {
+                    throw new RestException(Status.NOT_FOUND, "Subscription not found");
                 }
-                asyncResponse.resume(e);
-            } else {
-                log.error("[{}] Failed to delete subscription {} {}", clientAppId(), topicName, subName, e);
-                asyncResponse.resume(new RestException(e));
-            }
-        }
+                return sub.delete();
+            }).thenRun(() -> {
+                log.info("[{}][{}] Deleted subscription {}", clientAppId(), topicName, subName);
+                asyncResponse.resume(Response.noContent().build());
+            }).exceptionally(e -> {
+                Throwable cause = e.getCause();
+                if (cause instanceof SubscriptionBusyException) {
+                    log.error("[{}] Failed to delete subscription {} from topic {}", clientAppId(), subName,
+                            topicName, cause);
+                    asyncResponse.resume(new RestException(Status.PRECONDITION_FAILED,
+                            "Subscription has active connected consumers"));
+                } else if (cause instanceof WebApplicationException) {
+                    if (log.isDebugEnabled() && ((WebApplicationException) cause).getResponse().getStatus()
+                            == Status.TEMPORARY_REDIRECT.getStatusCode()) {
+                        log.debug("[{}] Failed to delete subscription from topic {}, redirecting to other brokers.",
+                                clientAppId(), topicName, cause);
+                    }
+                    asyncResponse.resume(cause);
+                } else {
+                    log.error("[{}] Failed to delete subscription {} {}", clientAppId(), topicName, subName, cause);
+                    asyncResponse.resume(new RestException(cause));
+                }
+                return null;
+            });
     }
 
     protected void internalDeleteSubscriptionForcefully(AsyncResponse asyncResponse,
@@ -1565,33 +1566,34 @@ public class PersistentTopicsBase extends AdminResource {
 
     private void internalDeleteSubscriptionForNonPartitionedTopicForcefully(AsyncResponse asyncResponse,
                                                                             String subName, boolean authoritative) {
-        try {
-            validateTopicOwnership(topicName, authoritative);
-            validateTopicOperation(topicName, TopicOperation.UNSUBSCRIBE);
-
-            Topic topic = getTopicReference(topicName);
-            Subscription sub = topic.getSubscription(subName);
-            if (sub == null) {
-                asyncResponse.resume(new RestException(Status.NOT_FOUND, "Subscription not found"));
-                return;
-            }
-            sub.deleteForcefully().get();
-            log.info("[{}][{}] Deleted subscription forcefully {}", clientAppId(), topicName, subName);
-            asyncResponse.resume(Response.noContent().build());
-        } catch (Exception e) {
-            if (e instanceof WebApplicationException) {
-                if (log.isDebugEnabled()) {
-                    log.debug("[{}] Failed to delete subscription forcefully from topic {},"
-                                    + " redirecting to other brokers.",
-                            clientAppId(), topicName, e);
-                }
-                asyncResponse.resume(e);
-            } else {
-                log.error("[{}] Failed to delete subscription forcefully {} {}",
-                        clientAppId(), topicName, subName, e);
-                asyncResponse.resume(new RestException(e));
-            }
-        }
+        validateTopicOwnershipAsync(topicName, authoritative)
+                .thenRun(() -> validateTopicOperation(topicName, TopicOperation.UNSUBSCRIBE))
+                .thenCompose(__ -> {
+                    Topic topic = getTopicReference(topicName);
+                    Subscription sub = topic.getSubscription(subName);
+                    if (sub == null) {
+                        throw new RestException(Status.NOT_FOUND, "Subscription not found");
+                    }
+                    return sub.deleteForcefully();
+                }).thenRun(() -> {
+                    log.info("[{}][{}] Deleted subscription forcefully {}", clientAppId(), topicName, subName);
+                    asyncResponse.resume(Response.noContent().build());
+                }).exceptionally(e -> {
+                    Throwable cause = e.getCause();
+                    if (cause instanceof WebApplicationException) {
+                        if (log.isDebugEnabled() && ((WebApplicationException) cause).getResponse().getStatus()
+                                == Status.TEMPORARY_REDIRECT.getStatusCode()) {
+                            log.debug("[{}] Failed to delete subscription from topic {}, redirecting to other brokers.",
+                                    clientAppId(), topicName, cause);
+                        }
+                        asyncResponse.resume(cause);
+                    } else {
+                        log.error("[{}] Failed to delete subscription forcefully {} {}",
+                                clientAppId(), topicName, subName, cause);
+                        asyncResponse.resume(new RestException(cause));
+                    }
+                    return null;
+                });
     }
 
     protected void internalSkipAllMessages(AsyncResponse asyncResponse, String subName, boolean authoritative) {
@@ -3534,13 +3536,9 @@ public class PersistentTopicsBase extends AdminResource {
 
     private CompletableFuture<Topic> getTopicReferenceAsync(TopicName topicName) {
         return pulsar().getBrokerService().getTopicIfExists(topicName.toString())
-                .thenCompose(optTopic -> {
-                    if (optTopic.isPresent()) {
-                        return CompletableFuture.completedFuture(optTopic.get());
-                    } else {
-                        return topicNotFoundReasonAsync(topicName);
-                    }
-                });
+                .thenCompose(optTopic -> optTopic
+                        .map(CompletableFuture::completedFuture)
+                        .orElseGet(() -> topicNotFoundReasonAsync(topicName)));
     }
 
     private RestException topicNotFoundReason(TopicName topicName) {

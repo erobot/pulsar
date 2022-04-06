@@ -18,6 +18,7 @@
  */
 package org.apache.pulsar.broker.admin;
 
+import static org.apache.pulsar.broker.BrokerTestUtil.spyWithClassAndConstructorArgs;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -49,6 +50,7 @@ import org.apache.pulsar.broker.admin.v2.PersistentTopics;
 import org.apache.pulsar.broker.auth.MockedPulsarServiceBaseTest;
 import org.apache.pulsar.broker.authentication.AuthenticationDataHttps;
 import org.apache.pulsar.broker.cache.LocalZooKeeperCacheService;
+import org.apache.pulsar.broker.service.BrokerService;
 import org.apache.pulsar.broker.web.PulsarWebResource;
 import org.apache.pulsar.broker.web.RestException;
 import org.apache.pulsar.client.admin.PulsarAdminException;
@@ -73,6 +75,7 @@ import org.apache.pulsar.common.policies.data.Policies;
 import org.apache.pulsar.common.policies.data.TenantInfoImpl;
 import org.apache.pulsar.common.policies.data.TopicStats;
 import org.apache.pulsar.zookeeper.ZooKeeperManagedLedgerCache;
+import org.apache.pulsar.metadata.api.MetadataStoreException;
 import org.apache.zookeeper.KeeperException;
 import org.mockito.ArgumentCaptor;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
@@ -108,7 +111,7 @@ public class PersistentTopicsTest extends MockedPulsarServiceBaseTest {
     @BeforeMethod
     protected void setup() throws Exception {
         super.internalSetup();
-        persistentTopics = spy(new PersistentTopics());
+        persistentTopics = spy(PersistentTopics.class);
         persistentTopics.setServletContext(new MockServletContext());
         persistentTopics.setPulsar(pulsar);
         doReturn(mockZooKeeper).when(persistentTopics).localZk();
@@ -119,7 +122,7 @@ public class PersistentTopicsTest extends MockedPulsarServiceBaseTest {
         doNothing().when(persistentTopics).validateAdminAccessForTenant(this.testTenant);
         doReturn(mock(AuthenticationDataHttps.class)).when(persistentTopics).clientAuthData();
 
-        nonPersistentTopic = spy(new NonPersistentTopics());
+        nonPersistentTopic = spy(NonPersistentTopics.class);
         nonPersistentTopic.setServletContext(new MockServletContext());
         nonPersistentTopic.setPulsar(pulsar);
         doReturn(mockZooKeeper).when(nonPersistentTopic).localZk();
@@ -897,6 +900,36 @@ public class PersistentTopicsTest extends MockedPulsarServiceBaseTest {
             Assert.fail();
         } catch (Exception e) {
             Assert.assertNull(message4);
+        }
+    }
+
+    @Test
+    public void testDeleteTopic() throws Exception {
+        final String topicName = "topic-1";
+        BrokerService brokerService = spy(pulsar.getBrokerService());
+        doReturn(brokerService).when(pulsar).getBrokerService();
+        persistentTopics.createNonPartitionedTopic(testTenant, testNamespace, topicName, false);
+        CompletableFuture<Void> deleteTopicFuture = new CompletableFuture<>();
+        deleteTopicFuture.completeExceptionally(new MetadataStoreException.NotFoundException());
+        doReturn(deleteTopicFuture).when(brokerService).deleteTopic(anyString(), anyBoolean(), anyBoolean());
+        persistentTopics.deleteTopic(testTenant, testNamespace, topicName, true, true, true);
+        //
+        CompletableFuture<Void> deleteTopicFuture2 = new CompletableFuture<>();
+        deleteTopicFuture2.completeExceptionally(new MetadataStoreException("test exception"));
+        doReturn(deleteTopicFuture2).when(brokerService).deleteTopic(anyString(), anyBoolean(), anyBoolean());
+        try {
+            persistentTopics.deleteTopic(testTenant, testNamespace, topicName, true, true, true);
+        } catch (Exception e) {
+            Assert.assertTrue(e instanceof RestException);
+        }
+        //
+        CompletableFuture<Void> deleteTopicFuture3 = new CompletableFuture<>();
+        deleteTopicFuture3.completeExceptionally(new MetadataStoreException.NotFoundException());
+        doReturn(deleteTopicFuture3).when(brokerService).deleteTopic(anyString(), anyBoolean(), anyBoolean());
+        try {
+            persistentTopics.deleteTopic(testTenant, testNamespace, topicName, false, true, true);
+        } catch (RestException e) {
+            Assert.assertEquals(e.getResponse().getStatus(), 404);
         }
     }
 }

@@ -754,6 +754,9 @@ public class MultiTopicsConsumerImpl<T> extends ConsumerBase<T> {
     }
 
     public CompletableFuture<Boolean> hasMessageAvailableAsync() {
+        if (numMessagesInQueue() > 0) {
+            return CompletableFuture.completedFuture(true);
+        }
         List<CompletableFuture<Void>> futureList = new ArrayList<>();
         final AtomicBoolean hasMessageAvailable = new AtomicBoolean(false);
         for (ConsumerImpl<T> consumer : consumers.values()) {
@@ -768,7 +771,7 @@ public class MultiTopicsConsumerImpl<T> extends ConsumerBase<T> {
             if (exception != null) {
                 completableFuture.completeExceptionally(exception);
             } else {
-                completableFuture.complete(hasMessageAvailable.get());
+                completableFuture.complete(hasMessageAvailable.get() || numMessagesInQueue() > 0);
             }
         });
         return completableFuture;

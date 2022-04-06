@@ -26,9 +26,9 @@ import io.netty.channel.AdaptiveRecvByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
+import io.netty.resolver.dns.DnsNameResolver;
+import io.netty.resolver.dns.DnsNameResolverBuilder;
 import io.netty.util.concurrent.DefaultThreadFactory;
-import io.netty.util.HashedWheelTimer;
-import io.netty.util.Timer;
 import io.prometheus.client.Counter;
 import io.prometheus.client.Gauge;
 import lombok.Getter;
@@ -75,7 +75,10 @@ public class ProxyService implements Closeable {
 
     private final ProxyConfiguration proxyConfig;
     private final Authentication proxyClientAuthentication;
-    private final Timer timer;
+    @Getter
+    private final DnsNameResolver dnsNameResolver;
+    @Getter
+    private final BrokerProxyValidator brokerProxyValidator;
     private String serviceUrl;
     private String serviceUrlTls;
     private ConfigurationMetadataCacheService configurationCacheService;
@@ -103,8 +106,6 @@ public class ProxyService implements Closeable {
     protected int proxyLogLevel;
 
     private final ScheduledExecutorService statsExecutor;
-
-    private static final int numThreads = Runtime.getRuntime().availableProcessors();
 
     static final Gauge activeConnections = Gauge
             .build("pulsar_proxy_active_connections", "Number of connections currently active in the proxy").create()
@@ -135,7 +136,6 @@ public class ProxyService implements Closeable {
                         AuthenticationService authenticationService) throws IOException {
         checkNotNull(proxyConfig);
         this.proxyConfig = proxyConfig;
-        this.timer = new HashedWheelTimer(new DefaultThreadFactory("pulsar-timer", Thread.currentThread().isDaemon()), 1, TimeUnit.MILLISECONDS);
         this.clientCnxs = Sets.newConcurrentHashSet();
         this.topicStats = Maps.newConcurrentMap();
 
@@ -147,9 +147,20 @@ public class ProxyService implements Closeable {
         } else {
             proxyLogLevel = 0;
         }
-        this.acceptorGroup = EventLoopUtil.newEventLoopGroup(1, false, acceptorThreadFactory);
-        this.workerGroup = EventLoopUtil.newEventLoopGroup(numThreads, false, workersThreadFactory);
+        this.acceptorGroup = EventLoopUtil.newEventLoopGroup(proxyConfig.getNumAcceptorThreads(),
+                false, acceptorThreadFactory);
+        this.workerGroup = EventLoopUtil.newEventLoopGroup(proxyConfig.getNumIOThreads(),
+                false, workersThreadFactory);
         this.authenticationService = authenticationService;
+
+        DnsNameResolverBuilder dnsNameResolverBuilder = new DnsNameResolverBuilder(workerGroup.next())
+                .channelType(EventLoopUtil.getDatagramChannelClass(workerGroup));
+        dnsNameResolver = dnsNameResolverBuilder.build();
+
+        brokerProxyValidator = new BrokerProxyValidator(dnsNameResolver.asAddressResolver(),
+                proxyConfig.getBrokerProxyAllowedHostNames(),
+                proxyConfig.getBrokerProxyAllowedIPAddresses(),
+                proxyConfig.getBrokerProxyAllowedTargetPorts());
 
         statsExecutor = Executors
                 .newSingleThreadScheduledExecutor(new DefaultThreadFactory("proxy-stats-executor"));
@@ -238,6 +249,8 @@ public class ProxyService implements Closeable {
     }
 
     public void close() throws IOException {
+        dnsNameResolver.close();
+
         if (discoveryProvider != null) {
             discoveryProvider.close();
         }
@@ -275,9 +288,6 @@ public class ProxyService implements Closeable {
         }
         acceptorGroup.shutdownGracefully();
         workerGroup.shutdownGracefully();
-        if (timer != null) {
-            timer.stop();
-        }
     }
 
     public String getServiceUrl() {
@@ -290,10 +300,6 @@ public class ProxyService implements Closeable {
 
     public ProxyConfiguration getConfiguration() {
         return proxyConfig;
-    }
-
-    public Timer getTimer() {
-        return timer;
     }
 
     public AuthenticationService getAuthenticationService() {

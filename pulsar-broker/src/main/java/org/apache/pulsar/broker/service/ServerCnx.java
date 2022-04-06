@@ -283,6 +283,11 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
 
         // Connection is gone, close the producers immediately
         producers.forEach((__, producerFuture) -> {
+            // prevent race conditions in completing producers
+            if (!producerFuture.isDone()
+                    && producerFuture.completeExceptionally(new IllegalStateException("Connection closed."))) {
+                return;
+            }
             if (producerFuture.isDone() && !producerFuture.isCompletedExceptionally()) {
                 Producer producer = producerFuture.getNow(null);
                 producer.closeNow(true);
@@ -290,17 +295,18 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
         });
 
         consumers.forEach((__, consumerFuture) -> {
-            Consumer consumer;
-            if (consumerFuture.isDone() && !consumerFuture.isCompletedExceptionally()) {
-                consumer = consumerFuture.getNow(null);
-            } else {
+            // prevent race conditions in completing consumers
+            if (!consumerFuture.isDone()
+                    && consumerFuture.completeExceptionally(new IllegalStateException("Connection closed."))) {
                 return;
             }
-
-            try {
-                consumer.close();
-            } catch (BrokerServiceException e) {
-                log.warn("Consumer {} was already closed: {}", consumer, e);
+            if (consumerFuture.isDone() && !consumerFuture.isCompletedExceptionally()) {
+                Consumer consumer = consumerFuture.getNow(null);
+                try {
+                    consumer.close();
+                } catch (BrokerServiceException e) {
+                    log.warn("Consumer {} was already closed: {}", consumer, e);
+                }
             }
         });
         this.service.getPulsarStats().recordConnectionClose();
@@ -1277,8 +1283,15 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
 
                                         producers.remove(producerId, producerFuture);
                                 }).exceptionally(ex -> {
-                                    log.error("[{}] Failed to add producer to topic {}: producerId={}, {}",
-                                              remoteAddress, topicName, producerId, ex.getMessage());
+                                    if (ex.getCause() instanceof BrokerServiceException.ProducerFencedException) {
+                                        if (log.isDebugEnabled()) {
+                                            log.debug("[{}] Failed to add producer to topic {}: producerId={}, {}",
+                                                    remoteAddress, topicName, producerId, ex.getCause().getMessage());
+                                        }
+                                    } else {
+                                        log.warn("[{}] Failed to add producer to topic {}: producerId={}, {}",
+                                                remoteAddress, topicName, producerId, ex.getCause().getMessage());
+                                    }
 
                                     producer.closeNow(true);
                                     if (producerFuture.completeExceptionally(ex)) {
@@ -1701,7 +1714,10 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
         ManagedLedgerImpl ml = (ManagedLedgerImpl) persistentTopic.getManagedLedger();
 
         // If it's not pointing to a valid entry, respond messageId of the current position.
-        if (lastPosition.getEntryId() == -1) {
+        // If the compaction cursor reach the end of the topic, respond messageId from compacted ledger
+        Optional<Position> compactionHorizon = persistentTopic.getCompactedTopic().getCompactionHorizon();
+        if (lastPosition.getEntryId() == -1 || (compactionHorizon.isPresent()
+                        && lastPosition.compareTo((PositionImpl) compactionHorizon.get()) <= 0)) {
             handleLastMessageIdFromCompactedLedger(persistentTopic, requestId, partitionIndex,
                     markDeletePosition);
             return;
