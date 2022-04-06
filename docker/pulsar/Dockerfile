@@ -54,7 +54,9 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG UBUNTU_MIRROR=mirror://mirrors.ubuntu.com/mirrors.txt
 
 # Install some utilities
-RUN sed -i "s|http://archive\.ubuntu\.com/ubuntu/|${UBUNTU_MIRROR:-mirror://mirrors.ubuntu.com/mirrors.txt}|g" /etc/apt/sources.list \
+RUN sed -i s@/archive.ubuntu.com/@/mirrors.tencent.com/@g /etc/apt/sources.list \
+     && sed -i s@/security.ubuntu.com/@/mirrors.tencent.com/@g /etc/apt/sources.list \
+     && apt-get clean all \
      && apt-get update \
      && apt-get -y dist-upgrade \
      && apt-get -y install --no-install-recommends openjdk-11-jdk-headless netcat dnsutils less procps iputils-ping \
