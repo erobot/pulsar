@@ -1494,6 +1494,8 @@ public class BrokerService implements Closeable, ZooKeeperCacheListener<Policies
             managedLedgerConfig.setRetentionSizeInMB(retentionPolicies.getRetentionSizeInMB());
             managedLedgerConfig.setAutoSkipNonRecoverableData(serviceConfig.isAutoSkipNonRecoverableData());
             managedLedgerConfig.setLazyCursorRecovery(serviceConfig.isLazyCursorRecovery());
+            managedLedgerConfig.setCacheEvictionByMarkDeletedPosition(
+                    serviceConfig.isCacheEvictionByMarkDeletedPosition());
 
             OffloadPoliciesImpl nsLevelOffloadPolicies =
                     (OffloadPoliciesImpl) policies.map(p -> p.offload_policies).orElse(null);
