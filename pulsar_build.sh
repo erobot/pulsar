@@ -21,7 +21,7 @@
 
 PULSAR_DEPLOY_DIR=$1
 PULSAR_SOURCE_DIR=`pwd`
-PULSAR_VERSION=2.8.2
+PULSAR_VERSION=2.8.3
 
 
 # maven build project
@@ -39,9 +39,12 @@ if [ "${PULSAR_DEPLOY_DIR}x" = "x" ];
     exit 1
 fi
 
+if [ ! -d  $PULSAR_DEPLOY_DIR/pulsar ]; then
+    mkdir -p $PULSAR_DEPLOY_DIR/pulsar
+fi
 # copy pulsar-src-code to deploy dir
 tar xfz $PULSAR_SOURCE_DIR/distribution/server/target/apache-pulsar-$PULSAR_VERSION-bin.tar.gz -C $PULSAR_SOURCE_DIR/distribution/server/target
-cp -ri $PULSAR_SOURCE_DIR/distribution/server/target/apache-pulsar-$PULSAR_VERSION $PULSAR_DEPLOY_DIR/pulsar
+cp -ri $PULSAR_SOURCE_DIR/distribution/server/target/apache-pulsar-$PULSAR_VERSION/. $PULSAR_DEPLOY_DIR/pulsar
 
 
 # generate conf tql
