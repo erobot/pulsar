@@ -31,11 +31,11 @@ COPY --from=pulsar-all /connectors /pulsar/connectors
 COPY --from=pulsar-all /offloaders /pulsar/offloaders
 
 RUN apt-get update && apt-get install fio sysstat vim ioping telnet dstat nload iftop iperf net-tools ethtool gdb -y \
+&& pip --no-cache-dir install zk-shell -i https://mirrors.tencent.com/pypi/simple/ \
+&& sed -i s@int\(znode_count\)@int\(float\(znode_count\)\)@g /usr/local/lib/python3.8/dist-packages/zk_shell/shell.py \
+&& sed -i s@int\(eph_count\)@int\(float\(eph_count\)\)@g /usr/local/lib/python3.8/dist-packages/zk_shell/shell.py \
+&& sed -i s@int\(dsize\)@int\(float\(dsize\)\)@g /usr/local/lib/python3.8/dist-packages/zk_shell/shell.py \
+&& sed -i s@int\(session_count\)@int\(float\(session_count\)\)@g /usr/local/lib/python3.8/dist-packages/zk_shell/shell.py \
 && ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
 && echo "Asia/Shanghai" > /etc/timezone \
-&& echo "export LS_OPTIONS='--color=auto'" >> $HOME/.bashrc \
-&& echo "alias ls='ls \$LS_OPTIONS'" >> $HOME/.bashrc \
-&& echo "alias ll='ls \$LS_OPTIONS -l'" >> $HOME/.bashrc \
-&& echo "alias l='ls \$LS_OPTIONS -lA'" >> $HOME/.bashrc \
-&& echo "alias i='ifconfig'" >> $HOME/.bashrc \
-&& echo "alias grep='grep --color=auto'" >> $HOME/.bashrc
+&& echo "alias i='ifconfig'" >> $HOME/.bashrc
