@@ -389,10 +389,6 @@ public enum JCloudBlobStoreProvider implements Serializable, ConfigValidation, B
     static final BlobStoreBuilder S3_BLOB_STORE_BUILDER = (TieredStorageConfiguration config) -> {
         ContextBuilder contextBuilder = ContextBuilder.newBuilder(config.getProviderMetadata());
         Properties overrides = config.getOverrides();
-        if (ALIYUN_OSS.getDriver().equals(config.getDriver())) {
-            // For security reasons, OSS supports only virtual hosted style access.
-            overrides.setProperty(S3Constants.PROPERTY_S3_VIRTUAL_HOST_BUCKETS, "true");
-        }
         contextBuilder.overrides(overrides);
         contextBuilder.endpoint(config.getServiceEndpoint());
 
