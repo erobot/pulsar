@@ -822,6 +822,10 @@ public class BrokerService implements Closeable, ZooKeeperCacheListener<Policies
      * </ul>
      */
     public void unloadNamespaceBundlesGracefully() {
+        unloadNamespaceBundlesGracefully(0, true);
+    }
+
+    public void unloadNamespaceBundlesGracefully(int maxConcurrentUnload, boolean closeWithoutWaitingClientDisconnect) {
         try {
             log.info("Unloading namespace-bundles...");
             // make broker-node unavailable from the cluster
@@ -837,17 +841,17 @@ public class BrokerService implements Closeable, ZooKeeperCacheListener<Policies
             // unload all namespace-bundles gracefully
             long closeTopicsStartTime = System.nanoTime();
             Set<NamespaceBundle> serviceUnits = pulsar.getNamespaceService().getOwnedServiceUnits();
-            if (serviceUnits != null) {
-                serviceUnits.forEach(su -> {
-                    if (su instanceof NamespaceBundle) {
-                        try {
-                            pulsar.getNamespaceService().unloadNamespaceBundle(su, 1, TimeUnit.MINUTES).get();
-                        } catch (Exception e) {
-                            log.warn("Failed to unload namespace bundle {}", su, e);
-                        }
+            serviceUnits.forEach(su -> {
+                if (su instanceof NamespaceBundle) {
+                    try {
+                        pulsar.getNamespaceService().unloadNamespaceBundle(su,
+                                pulsar.getConfiguration().getNamespaceBundleUnloadingTimeoutMs(), TimeUnit.MILLISECONDS)
+                                .get();
+                    } catch (Exception e) {
+                        log.warn("Failed to unload namespace bundle {}", su, e);
                     }
-                });
-            }
+                }
+            });
 
             double closeTopicsTimeSeconds = TimeUnit.NANOSECONDS.toMillis((System.nanoTime() - closeTopicsStartTime))
                     / 1000.0;

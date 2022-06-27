@@ -22,6 +22,7 @@ import org.apache.pulsar.client.admin.PulsarAdmin;
 
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.Parameters;
+import org.apache.pulsar.common.naming.TopicVersion;
 
 import java.util.function.Supplier;
 
@@ -127,10 +128,32 @@ public class CmdBrokers extends CmdBase {
     @Parameters(commandDescription = "Run a health check against the broker")
     private class HealthcheckCmd extends CliCommand {
 
+        @Parameter(names = "--topic-version", description = "topic version V1 is default")
+        private TopicVersion topicVersion;
+
         @Override
         void run() throws Exception {
-            getAdmin().brokers().healthcheck();
+            getAdmin().brokers().healthcheck(topicVersion);
             System.out.println("ok");
+        }
+
+    }
+
+    @Parameters(commandDescription = "Shutdown broker gracefully.")
+    private class ShutDownBrokerGracefully extends CliCommand {
+
+        @Parameter(names = {"--max-concurrent-unload-per-sec", "-m"},
+                description = "Max concurrent unload per second, "
+                        + "if the value absent(value=0) means no concurrent limitation")
+        private int maxConcurrentUnloadPerSec;
+
+        @Parameter(names = {"--forced-terminate-topic", "-f"}, description = "Force terminate all topics on Broker")
+        private boolean forcedTerminateTopic;
+
+        @Override
+        void run() throws Exception {
+            getAdmin().brokers().shutDownBrokerGracefully(maxConcurrentUnloadPerSec, forcedTerminateTopic);
+            System.out.println("Successfully trigger broker shutdown gracefully");
         }
 
     }
@@ -183,5 +206,6 @@ public class CmdBrokers extends CmdBase {
         jcommander.addCommand("backlog-quota-check", new BacklogQuotaCheckCmd());
         jcommander.addCommand("version", new PulsarVersion());
         jcommander.addCommand("update-logger-level", new UpdateLoggerLevelCmd());
+        jcommander.addCommand("shutdown", new ShutDownBrokerGracefully());
     }
 }

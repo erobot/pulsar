@@ -136,7 +136,7 @@ public class PulsarAdminToolTest {
         verify(mockBrokers).getRuntimeConfigurations();
 
         brokers.run(split("healthcheck"));
-        verify(mockBrokers).healthcheck();
+        verify(mockBrokers).healthcheck(null);
 
         brokers.run(split("version"));
         verify(mockBrokers).getVersion();
@@ -145,6 +145,9 @@ public class PulsarAdminToolTest {
         brokers.run(split("update-logger-level --classname org.apache.pulsar.zookeeper.ZooKeeperCache --level DEBUG"));
         verify(mockBrokers).updateLoggerLevel("org.apache.pulsar.zookeeper.ZooKeeperCache","DEBUG");
 
+
+        brokers.run(split("shutdown -m 10 -f"));
+        verify(mockBrokers).shutDownBrokerGracefully(10,true);
     }
 
     @Test
