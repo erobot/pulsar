@@ -1462,6 +1462,10 @@ public class ServiceConfiguration implements PulsarConfiguration {
             (int) (PlatformDependent.maxDirectMemory() / 5 / (1024 * 1024)));
     @FieldContext(category = CATEGORY_STORAGE_ML, doc = "Whether we should make a copy of the entry payloads when inserting in cache")
     private boolean managedLedgerCacheCopyEntries = false;
+
+    @FieldContext(category = CATEGORY_STORAGE_ML, doc = "Whether remove all entries already read by active cursors in cache")
+    private boolean managedLedgerCacheRemoveReadEntries = true;
+
     @FieldContext(
         category = CATEGORY_STORAGE_ML,
         doc = "Threshold to which bring down the cache level when eviction is triggered"
