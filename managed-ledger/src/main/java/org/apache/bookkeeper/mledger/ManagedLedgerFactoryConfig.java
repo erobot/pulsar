@@ -58,6 +58,11 @@ public class ManagedLedgerFactoryConfig {
     private boolean copyEntriesInCache = false;
 
     /**
+     * Whether remove all entries already read by active cursors in cache
+     */
+    private boolean removeReadEntriesInCache = true;
+
+    /**
      * Whether trace managed ledger task execution time
      */
     private boolean traceTaskExecution = true;
