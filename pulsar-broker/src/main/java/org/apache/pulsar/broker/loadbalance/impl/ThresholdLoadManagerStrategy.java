@@ -61,7 +61,7 @@ public class ThresholdLoadManagerStrategy implements ModularLoadManagerStrategy 
         double brokerResourceUsage = brokerData.getLocalData().getMaxResourceUsageWithWeight(
                 conf.getLoadBalancerCPUResourceWeight(), conf.getLoadBalancerMemoryResourceWeight(),
                 conf.getLoadBalancerDirectMemoryResourceWeight(), conf.getLoadBalancerBandwithInResourceWeight(),
-                conf.getLoadBalancerBandwithOutResourceWeight());
+                conf.getLoadBalancerBandwithOutResourceWeight(), conf.isLoadBalancerBandwithSumInAndOut());
 
         if (log.isDebugEnabled()) {
             log.debug("Broker {} resource usage {}",
