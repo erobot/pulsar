@@ -2144,6 +2144,13 @@ public class ServiceConfiguration implements PulsarConfiguration {
     )
     private int managedLedgerOffloadPrefetchRounds = 1;
 
+    @FieldContext(
+            category = CATEGORY_STORAGE_ML,
+            doc = "Evicting cache data by the slowest markDeletedPosition or readPosition. "
+                    + "The default is to evict through readPosition."
+    )
+    private boolean cacheEvictionByMarkDeletedPosition = false;
+
     /**** --- Transaction config variables --- ****/
     @FieldContext(
             category = CATEGORY_TRANSACTION,
