@@ -1690,6 +1690,14 @@ public class ServiceConfiguration implements PulsarConfiguration {
             + " should be offload from some over-loaded broker to other under-loaded brokers"
     )
     private int loadBalancerSheddingIntervalMinutes = 1;
+
+    @FieldContext(
+            dynamic = true,
+            category = CATEGORY_LOAD_BALANCER,
+            doc = "enable/disable distribute bundles evenly"
+    )
+    private boolean loadBalancerDistributeBundlesEvenlyEnabled = true;
+
     @FieldContext(
         category = CATEGORY_LOAD_BALANCER,
         doc = "Prevent the same topics to be shed and moved to other broker more that"
