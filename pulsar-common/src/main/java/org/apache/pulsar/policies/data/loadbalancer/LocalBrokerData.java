@@ -249,11 +249,25 @@ public class LocalBrokerData implements LoadManagerReport {
     }
 
     public double getMaxResourceUsageWithWeight(final double cpuWeight, final double memoryWeight,
-                                                final double directMemoryWeight, final double bandwidthInWeight,
-                                                final double bandwidthOutWeight) {
-        return max(cpu.percentUsage() * cpuWeight, memory.percentUsage() * memoryWeight,
-                directMemory.percentUsage() * directMemoryWeight, bandwidthIn.percentUsage() * bandwidthInWeight,
-                bandwidthOut.percentUsage() * bandwidthOutWeight) / 100;
+                                                final double directMemoryWeight, final double bandwithInWeight,
+                                                final double bandWithOutWeight) {
+        return getMaxResourceUsageWithWeight(
+                cpuWeight, memoryWeight, directMemoryWeight, bandwithInWeight, bandWithOutWeight, false);
+    }
+
+    public double getMaxResourceUsageWithWeight(final double cpuWeight, final double memoryWeight,
+                                                final double directMemoryWeight, final double bandwithInWeight,
+                                                final double bandWithOutWeight, final boolean sumBandwithInAndOut) {
+        if (sumBandwithInAndOut) {
+            return max(cpu.percentUsage() * cpuWeight, memory.percentUsage() * memoryWeight,
+                    directMemory.percentUsage() * directMemoryWeight,
+                    bandwidthIn.percentUsage() * bandwithInWeight + bandwidthOut.percentUsage() * bandWithOutWeight)
+                    / 100;
+        } else {
+            return max(cpu.percentUsage() * cpuWeight, memory.percentUsage() * memoryWeight,
+                    directMemory.percentUsage() * directMemoryWeight, bandwidthIn.percentUsage() * bandwithInWeight,
+                    bandwidthOut.percentUsage() * bandWithOutWeight) / 100;
+        }
     }
 
     public double getMaxResourceUsageWithWeightWithinLimit(final double cpuWeight, final double memoryWeight,
