@@ -1858,6 +1858,14 @@ public class ServiceConfiguration implements PulsarConfiguration {
     @FieldContext(
             dynamic = true,
             category = CATEGORY_LOAD_BALANCER,
+            doc = "Whether sum up inbound and outbound bandwidth as total bandwidth usage "
+                    + "when calculating new resource usage"
+    )
+    private boolean loadBalancerBandwithSumInAndOut = true;
+
+    @FieldContext(
+            dynamic = true,
+            category = CATEGORY_LOAD_BALANCER,
             doc = "Bundle unload minimum throughput threshold (MB)"
     )
     private double loadBalancerBundleUnloadMinThroughputThreshold = 10;
