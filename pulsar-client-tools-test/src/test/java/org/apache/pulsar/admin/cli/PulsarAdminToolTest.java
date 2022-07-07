@@ -861,6 +861,21 @@ public class PulsarAdminToolTest {
         verify(mockClusters).getBrokerWithNamespaceIsolationPolicy("use", "my-broker");
     }
 
+
+    @Test
+    public void testTopicsOffloadPolicies() throws Exception {
+        PulsarAdmin admin = Mockito.mock(PulsarAdmin.class);
+        Topics mockTopics = mock(Topics.class);
+        when(admin.topics()).thenReturn(mockTopics);
+
+        CmdTopics cmdTopics = new CmdTopics(() -> admin);
+        cmdTopics.run(split("set-offload-policies persistent://myprop/clust/ns1/ds1 -d s3 -r region -b bucket -e endpoint -m 8 -rb 9 -t 10 -orp tiered-storage-first"));
+        OffloadPoliciesImpl offloadPolicies = OffloadPoliciesImpl.create("s3", "region", "bucket"
+          , "endpoint", null, null, null, null,
+          8, 9, 10L, null, OffloadedReadPriority.TIERED_STORAGE_FIRST);
+        verify(mockTopics).setOffloadPolicies("persistent://myprop/clust/ns1/ds1", offloadPolicies);
+    }
+
     @Test
     public void topics() throws Exception {
         PulsarAdmin admin = Mockito.mock(PulsarAdmin.class);

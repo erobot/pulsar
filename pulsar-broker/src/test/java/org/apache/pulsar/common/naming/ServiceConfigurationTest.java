@@ -33,6 +33,9 @@ import java.util.Properties;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.common.configuration.PulsarConfigurationLoader;
 import org.apache.pulsar.common.policies.data.InactiveTopicDeleteMode;
+import org.apache.pulsar.common.policies.data.OffloadPoliciesImpl;
+import org.apache.pulsar.common.policies.data.OffloadedReadPriority;
+import org.testng.Assert;
 import org.testng.annotations.Test;
 
 @Test(groups = "broker-naming")
@@ -60,6 +63,18 @@ public class ServiceConfigurationTest {
         assertEquals(config.getSupportedNamespaceBundleSplitAlgorithms().size(), 1);
         assertEquals(config.getMaxMessagePublishBufferSizeInMB(), -1);
         assertEquals(config.getManagedLedgerDataReadPriority(), "bookkeeper-first");
+    }
+
+    @Test
+    public void testDataReadPriority() throws Exception {
+        final String zookeeperServer = "localhost:2184";
+        final int brokerServicePort = 1000;
+        InputStream newStream = updateProp(zookeeperServer, String.valueOf(brokerServicePort), "ns1,ns2");
+        final ServiceConfiguration config = PulsarConfigurationLoader.create(newStream, ServiceConfiguration.class);
+        assertEquals(config.getManagedLedgerDataReadPriority(), "bookkeeper-first");
+        OffloadPoliciesImpl offloadPolicies = OffloadPoliciesImpl.create(config.getProperties());
+        Assert.assertEquals("bookkeeper-first", offloadPolicies.getManagedLedgerOffloadedReadPriority().getValue());
+//        Assert.assertEquals(OffloadedReadPriority.BOOKKEEPER_FIRST, offloadPolicies.getManagedLedgerOffloadedReadPriority());
     }
 
     @Test
