@@ -34,7 +34,6 @@ import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.common.configuration.PulsarConfigurationLoader;
 import org.apache.pulsar.common.policies.data.InactiveTopicDeleteMode;
 import org.apache.pulsar.common.policies.data.OffloadPoliciesImpl;
-import org.apache.pulsar.common.policies.data.OffloadedReadPriority;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -74,7 +73,6 @@ public class ServiceConfigurationTest {
         assertEquals(config.getManagedLedgerDataReadPriority(), "bookkeeper-first");
         OffloadPoliciesImpl offloadPolicies = OffloadPoliciesImpl.create(config.getProperties());
         Assert.assertEquals("bookkeeper-first", offloadPolicies.getManagedLedgerOffloadedReadPriority().getValue());
-//        Assert.assertEquals(OffloadedReadPriority.BOOKKEEPER_FIRST, offloadPolicies.getManagedLedgerOffloadedReadPriority());
     }
 
     @Test
