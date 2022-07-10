@@ -25,6 +25,7 @@ import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.Parameters;
 import com.beust.jcommander.converters.CommaParameterSplitter;
+import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -44,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.pulsar.client.admin.LongRunningProcessStatus;
 import org.apache.pulsar.client.admin.OffloadProcessStatus;
 import org.apache.pulsar.client.admin.PulsarAdmin;
@@ -1510,54 +1512,80 @@ public class CmdTopics extends CmdBase {
         @Parameter(description = "persistent://tenant/namespace/topic", required = true)
         private java.util.List<String> params;
 
-        @Parameter(names = {"-d", "--driver"}, description = "ManagedLedger offload driver", required = true)
+        @Parameter(
+          names = {"--driver", "-d"},
+          description = "Driver to use to offload old data to long term storage, " +
+            "(Possible values: S3, aws-s3, google-cloud-storage, filesystem, azureblob)",
+          required = true)
         private String driver;
 
-        @Parameter(names = {"-r", "--region"}
-                , description = "ManagedLedger offload region, s3 and google-cloud-storage requires this parameter")
+        @Parameter(
+          names = {"--region", "-r"},
+          description = "The long term storage region, "
+            + "default is s3ManagedLedgerOffloadRegion or gcsManagedLedgerOffloadRegion in broker.conf",
+          required = false)
         private String region;
 
-        @Parameter(names = {"-b", "--bucket"}
-                , description = "ManagedLedger offload bucket, s3 and google-cloud-storage requires this parameter")
+        @Parameter(
+          names = {"--bucket", "-b"},
+          description = "Bucket to place offloaded ledger into",
+          required = true)
         private String bucket;
 
-        @Parameter(names = {"-e", "--endpoint"}
-                , description = "ManagedLedger offload service endpoint, only s3 requires this parameter")
+        @Parameter(
+          names = {"--endpoint", "-e"},
+          description = "Alternative endpoint to connect to, "
+            + "s3 default is s3ManagedLedgerOffloadServiceEndpoint in broker.conf",
+          required = false)
         private String endpoint;
 
-        @Parameter(names = {"-i", "--aws-id"}
-                , description = "AWS Credential Id to use when using driver S3 or aws-s3")
+        @Parameter(
+          names = {"--aws-id", "-i"},
+          description = "AWS Credential Id to use when using driver S3 or aws-s3",
+          required = false)
         private String awsId;
 
-        @Parameter(names = {"-s", "--aws-secret"}
-                , description = "AWS Credential Secret to use when using driver S3 or aws-s3")
+        @Parameter(
+          names = {"--aws-secret", "-s"},
+          description = "AWS Credential Secret to use when using driver S3 or aws-s3",
+          required = false)
         private String awsSecret;
 
-        @Parameter(names = {"--ro", "--s3-role"}
-                , description = "S3 Role used for STSAssumeRoleSessionCredentialsProvider")
+        @Parameter(
+          names = {"--s3-role", "-ro"},
+          description = "S3 Role used for STSAssumeRoleSessionCredentialsProvider",
+          required = false)
         private String s3Role;
 
-        @Parameter(names = {"--s3-role-session-name", "-rsn"}
-                , description = "S3 role session name used for STSAssumeRoleSessionCredentialsProvider")
+        @Parameter(
+          names = {"--s3-role-session-name", "-rsn"},
+          description = "S3 role session name used for STSAssumeRoleSessionCredentialsProvider",
+          required = false)
         private String s3RoleSessionName;
 
-        @Parameter(names = {"-m", "--maxBlockSizeInBytes"},
-                description = "ManagedLedger offload max block Size in bytes,"
-                + "s3 and google-cloud-storage requires this parameter")
-        private int maxBlockSizeInBytes;
+        @Parameter(
+          names = {"--maxBlockSize", "-mbs"},
+          description = "Max block size (eg: 32M, 64M), default is 64MB",
+          required = false)
+        private String maxBlockSizeStr;
 
-        @Parameter(names = {"-rb", "--readBufferSizeInBytes"},
-                description = "ManagedLedger offload read buffer size in bytes,"
-                + "s3 and google-cloud-storage requires this parameter")
-        private int readBufferSizeInBytes;
+        @Parameter(
+          names = {"--readBufferSize", "-rbs"},
+          description = "Read buffer size (eg: 1M, 5M), default is 1MB",
+          required = false)
+        private String readBufferSizeStr;
 
-        @Parameter(names = {"-t", "--offloadThresholdInBytes"}
-                , description = "ManagedLedger offload threshold in bytes", required = true)
-        private long offloadThresholdInBytes;
+        @Parameter(
+          names = {"--offloadAfterElapsed", "-oae"},
+          description = "Offload after elapsed in minutes (or minutes, hours,days,weeks eg: 100m, 3h, 2d, 5w).",
+          required = false)
+        private String offloadAfterElapsedStr;
 
-        @Parameter(names = {"-dl", "--offloadDeletionLagInMillis"}
-                , description = "ManagedLedger offload deletion lag in bytes")
-        private Long offloadDeletionLagInMillis;
+        @Parameter(
+          names = {"--offloadAfterThreshold", "-oat"},
+          description = "Offload after threshold size (eg: 1M, 5M)",
+          required = false)
+        private String offloadAfterThresholdStr;
 
         @Parameter(
                 names = {"--offloadedReadPriority", "-orp"},
@@ -1566,10 +1594,81 @@ public class CmdTopics extends CmdBase {
         )
         private String offloadReadPriorityStr;
 
+        public final List<String> DRIVER_NAMES = OffloadPoliciesImpl.DRIVER_NAMES;
+
+        public boolean driverSupported(String driver) {
+            return DRIVER_NAMES.stream().anyMatch(d -> d.equalsIgnoreCase(driver));
+        }
+
+        public boolean isS3Driver(String driver) {
+            if (StringUtils.isEmpty(driver)) {
+                return false;
+            }
+            return driver.equalsIgnoreCase(DRIVER_NAMES.get(0)) || driver.equalsIgnoreCase(DRIVER_NAMES.get(1));
+        }
+
+        public boolean positiveCheck(String paramName, long value) {
+            if (value <= 0) {
+                throw new ParameterException(paramName + " is not be negative or 0!");
+            }
+            return true;
+        }
+
+        public boolean maxValueCheck(String paramName, long value, long maxValue) {
+            if (value > maxValue) {
+                throw new ParameterException(paramName + " is not bigger than " + maxValue + "!");
+            }
+            return true;
+        }
+
         @Override
         void run() throws PulsarAdminException {
             String persistentTopic = validatePersistentTopic(params);
 
+            if (!driverSupported(driver)) {
+                throw new ParameterException(
+                  "The driver " + driver + " is not supported, " +
+                    "(Possible values: " + String.join(",", DRIVER_NAMES) + ").");
+            }
+            if (isS3Driver(driver) && Strings.isNullOrEmpty(region) && Strings.isNullOrEmpty(endpoint)) {
+                throw new ParameterException(
+                  "Either s3ManagedLedgerOffloadRegion or s3ManagedLedgerOffloadServiceEndpoint must be set"
+                    + " if s3 offload enabled");
+            }
+
+            int maxBlockSizeInBytes = OffloadPoliciesImpl.DEFAULT_MAX_BLOCK_SIZE_IN_BYTES;
+            if (StringUtils.isNotEmpty(maxBlockSizeStr)) {
+                long maxBlockSize = validateSizeString(maxBlockSizeStr);
+                if (positiveCheck("MaxBlockSize", maxBlockSize)
+                  && maxValueCheck("MaxBlockSize", maxBlockSize, Integer.MAX_VALUE)) {
+                    maxBlockSizeInBytes = new Long(maxBlockSize).intValue();
+                }
+            }
+
+            int readBufferSizeInBytes = OffloadPoliciesImpl.DEFAULT_READ_BUFFER_SIZE_IN_BYTES;
+            if (StringUtils.isNotEmpty(readBufferSizeStr) ) {
+                long readBufferSize = validateSizeString(readBufferSizeStr);
+                if (positiveCheck("ReadBufferSize", readBufferSize)
+                  && maxValueCheck("ReadBufferSize", readBufferSize, Integer.MAX_VALUE)) {
+                    readBufferSizeInBytes = new Long(readBufferSize).intValue();
+                }
+            }
+
+            Long offloadAfterElapsedInMillis = OffloadPoliciesImpl.DEFAULT_OFFLOAD_DELETION_LAG_IN_MILLIS;
+            if (StringUtils.isNotEmpty(offloadAfterElapsedStr)) {
+                Long offloadAfterElapsed = TimeUnit.SECONDS.toMillis(RelativeTimeUtil.parseRelativeTimeInSeconds(offloadAfterElapsedStr));
+                if (maxValueCheck("OffloadAfterElapsed", offloadAfterElapsed, Long.MAX_VALUE)) {
+                    offloadAfterElapsedInMillis = offloadAfterElapsed;
+                }
+            }
+
+            Long offloadAfterThresholdInBytes = OffloadPoliciesImpl.DEFAULT_OFFLOAD_THRESHOLD_IN_BYTES;
+            if (StringUtils.isNotEmpty(offloadAfterThresholdStr)) {
+                long offloadAfterThreshold = validateSizeString(offloadAfterThresholdStr);
+                if (maxValueCheck("OffloadAfterThreshold", offloadAfterThreshold, Long.MAX_VALUE)) {
+                    offloadAfterThresholdInBytes = offloadAfterThreshold;
+                }
+            }
             OffloadedReadPriority offloadedReadPriority = OffloadPoliciesImpl.DEFAULT_OFFLOADED_READ_PRIORITY;
 
             if (this.offloadReadPriorityStr != null) {
@@ -1587,8 +1686,8 @@ public class CmdTopics extends CmdBase {
             OffloadPoliciesImpl offloadPolicies = OffloadPoliciesImpl.create(driver, region, bucket, endpoint,
                     s3Role, s3RoleSessionName,
                     awsId, awsSecret,
-                    maxBlockSizeInBytes,
-                    readBufferSizeInBytes, offloadThresholdInBytes, offloadDeletionLagInMillis, offloadedReadPriority);
+                    maxBlockSizeInBytes, readBufferSizeInBytes, offloadAfterThresholdInBytes,
+                    offloadAfterElapsedInMillis, offloadedReadPriority);
 
             getTopics().setOffloadPolicies(persistentTopic, offloadPolicies);
         }
