@@ -869,11 +869,18 @@ public class PulsarAdminToolTest {
         when(admin.topics()).thenReturn(mockTopics);
 
         CmdTopics cmdTopics = new CmdTopics(() -> admin);
-        cmdTopics.run(split("set-offload-policies persistent://myprop/clust/ns1/ds1 -d s3 -r region -b bucket -e endpoint -m 8 -rb 9 -t 10 -orp tiered-storage-first"));
+        cmdTopics.run(split("set-offload-policies persistent://myprop/clust/ns1/ds1 -d s3 -r region -b bucket -e endpoint -orp tiered-storage-first -mbs 8 -rbs 9 -oat 10 -oae 24"));
         OffloadPoliciesImpl offloadPolicies = OffloadPoliciesImpl.create("s3", "region", "bucket"
           , "endpoint", null, null, null, null,
-          8, 9, 10L, null, OffloadedReadPriority.TIERED_STORAGE_FIRST);
+          8, 9, 10L, 24000L, OffloadedReadPriority.TIERED_STORAGE_FIRST);
         verify(mockTopics).setOffloadPolicies("persistent://myprop/clust/ns1/ds1", offloadPolicies);
+
+        CmdTopics cmdTopics2 = new CmdTopics(() -> admin);
+        cmdTopics2.run(split("set-offload-policies persistent://myprop/clust/ns1/ds2 -d s3 -r region -b bucket -e endpoint -orp tiered-storage-first -mbs 64M -rbs 1M -oat 1M -oae 10s"));
+        OffloadPoliciesImpl offloadPolicies2 = OffloadPoliciesImpl.create("s3", "region", "bucket"
+          , "endpoint", null, null, null, null,
+          67108864, 1048576, 1048576L, 10000L, OffloadedReadPriority.TIERED_STORAGE_FIRST);
+        verify(mockTopics).setOffloadPolicies("persistent://myprop/clust/ns1/ds2", offloadPolicies2);
     }
 
     @Test
