@@ -22,7 +22,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.apache.pulsar.broker.BundleData;
 import org.apache.pulsar.broker.ServiceConfiguration;
-import org.apache.pulsar.broker.loadbalance.impl.LeastLongTermMessageRate;
+import org.apache.pulsar.common.util.Reflections;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,23 +52,17 @@ public interface ModularLoadManagerStrategy {
     /**
      * Create a placement strategy using the configuration.
      *
-     * @param conf
-     *            ServiceConfiguration to use.
+     * @param conf ServiceConfiguration to use.
      * @return A placement strategy from the given configurations.
      */
     static ModularLoadManagerStrategy create(final ServiceConfiguration conf) {
         try {
-            Class<?> loadManagerStrategyClass = Class.forName(conf.getLoadBalancerLoadManagerStrategy());
-            Object loadManagerStrategyInstance = loadManagerStrategyClass.newInstance();
-            if (loadManagerStrategyInstance instanceof ModularLoadManagerStrategy) {
-                return (ModularLoadManagerStrategy) loadManagerStrategyInstance;
-            } else {
-                LOG.error("create load manager strategy failed. using LeastLongTermMessageRate instead.");
-                return new LeastLongTermMessageRate();
-            }
+            return Reflections.createInstance(conf.getLoadBalancerLoadPlacementStrategy(),
+                    ModularLoadManagerStrategy.class, Thread.currentThread().getContextClassLoader());
         } catch (Exception e) {
-            LOG.error("Error when trying to create load manager strategy: ", e);
+            throw new RuntimeException(
+                    "Could not load LoadBalancerLoadPlacementStrategy:" + conf.getLoadBalancerLoadPlacementStrategy(),
+                    e);
         }
-        return new LeastLongTermMessageRate();
     }
 }
