@@ -1941,6 +1941,13 @@ public class ServiceConfiguration implements PulsarConfiguration {
     private String loadBalancerLoadSheddingStrategy = "org.apache.pulsar.broker.loadbalance.impl.ThresholdShedder";
 
     @FieldContext(
+            category = CATEGORY_LOAD_BALANCER,
+            doc = "load balance placement strategy"
+    )
+    private String loadBalancerLoadPlacementStrategy =
+            "org.apache.pulsar.broker.loadbalance.impl.LeastLongTermMessageRate";
+
+    @FieldContext(
         dynamic = true,
         category = CATEGORY_LOAD_BALANCER,
         doc = "Percentage of change to trigger load report update"
@@ -2045,6 +2052,16 @@ public class ServiceConfiguration implements PulsarConfiguration {
                 + "from broker-1 to broker-2)"
     )
     private double loadBalancerMsgThroughputMultiplierDifferenceShedderThreshold = 4;
+
+    @FieldContext(
+            dynamic = true,
+            category = CATEGORY_LOAD_BALANCER,
+            doc = "Average resource usage difference threshold to determine a broker whether to be a best candidate in "
+                    + "LeastResourceUsageWithWeight.(eg: broker1 with 10% resource usage with weight "
+                    + "and broker2 with 30% and broker3 with 80% will have 40% average resource usage. "
+                    + "The placement strategy can select broker1 and broker2 as best candidates.)"
+    )
+    private int loadBalancerAverageResourceUsageDifferenceThresholdPercentage = 10;
 
     @FieldContext(
             dynamic = true,
