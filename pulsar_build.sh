@@ -64,7 +64,7 @@ cp $PULSAR_SOURCE_DIR/docker/pulsar/scripts/watch-znode.py $PULSAR_DEPLOY_DIR/pu
 
 # add offloaders
 tar xfz $PULSAR_SOURCE_DIR/distribution/offloaders/target/apache-pulsar-offloaders-$PULSAR_VERSION-bin.tar.gz -C $PULSAR_SOURCE_DIR/distribution/offloaders/target
-cp -ri $PULSAR_SOURCE_DIR/distribution/offloaders/target/apache-pulsar-offloaders-$PULSAR_VERSION $PULSAR_DEPLOY_DIR/pulsar/offloaders
+cp -ri $PULSAR_SOURCE_DIR/distribution/offloaders/target/apache-pulsar-offloaders-$PULSAR_VERSION/offloaders/. $PULSAR_DEPLOY_DIR/pulsar/offloaders
 
 # add connectors
 cp -ri $PULSAR_SOURCE_DIR/distribution/io/target/apache-pulsar-io-connectors-$PULSAR_VERSION-bin $PULSAR_DEPLOY_DIR/pulsar/connectors
