@@ -1473,9 +1473,13 @@ public class PersistentTopics extends PersistentTopicsBase {
             @ApiParam(value = "The position of messages (default 1)", defaultValue = "1")
             @QueryParam("messagePosition") long messagePosition,
             @ApiParam(value = "Is authentication required to perform this operation")
-            @QueryParam("authoritative") @DefaultValue("false") boolean authoritative) {
+            @QueryParam("authoritative") @DefaultValue("false") boolean authoritative,
+            @ApiParam(value = "Whether to get pure data", defaultValue = "false")
+            @QueryParam("pureData") @DefaultValue("false") boolean pureData,
+            @ApiParam(value = "Whether to perform Base64 encoding", defaultValue = "false")
+            @QueryParam("base64Encode") @DefaultValue("false") boolean base64Encode) {
         validateTopicName(tenant, namespace, encodedTopic);
-        return internalExamineMessage(initialPosition, messagePosition, authoritative);
+        return internalExamineMessage(initialPosition, messagePosition, authoritative, pureData, base64Encode);
     }
 
     @GET

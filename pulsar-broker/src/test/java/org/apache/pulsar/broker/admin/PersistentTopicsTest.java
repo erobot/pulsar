@@ -38,12 +38,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.broker.admin.v2.NonPersistentTopics;
 import org.apache.pulsar.broker.admin.v2.PersistentTopics;
@@ -77,6 +80,9 @@ import org.apache.pulsar.common.policies.data.TopicStats;
 import org.apache.pulsar.zookeeper.ZooKeeperManagedLedgerCache;
 import org.apache.pulsar.metadata.api.MetadataStoreException;
 import org.apache.zookeeper.KeeperException;
+import org.asynchttpclient.AsyncHttpClient;
+import org.asynchttpclient.DefaultAsyncHttpClient;
+import org.asynchttpclient.Param;
 import org.mockito.ArgumentCaptor;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.core.classloader.annotations.PrepareForTest;
@@ -723,6 +729,46 @@ public class PersistentTopicsTest extends MockedPulsarServiceBaseTest {
         Assert.assertEquals(new String(admin.topics().examineMessage(topicName + "-partition-0", "latest", 3).getData()), "message3");
         Assert.assertEquals(new String(admin.topics().examineMessage(topicName + "-partition-0", "latest", 4).getData()), "message2");
         Assert.assertEquals(new String(admin.topics().examineMessage(topicName + "-partition-0", "latest", 5).getData()), "message1");
+
+        String url = pulsar.getWebServiceAddress() + "/admin/v2/persistent/tenant-xyz/ns-abc/topic-123-partition-0/examinemessage";
+        @Cleanup
+        AsyncHttpClient client = new DefaultAsyncHttpClient();
+
+        // pureData=false, base64Encode=false
+        org.asynchttpclient.Response res1 = client.prepareGet(url)
+                .addQueryParams(new ArrayList<Param>() {{
+                    add(new Param("initialPosition", "latest"));
+                    add(new Param("messagePosition", "1"));
+                    add(new Param("pureData", "false"));
+                    add(new Param("base64Encode", "false"));
+                }})
+                .execute()
+                .get();
+        Assert.assertNotEquals(res1.getResponseBody(), "message5");
+
+        // pureData=true, base64Encode=false
+        org.asynchttpclient.Response res2 = client.prepareGet(url)
+                .addQueryParams(new ArrayList<Param>() {{
+                    add(new Param("initialPosition", "latest"));
+                    add(new Param("messagePosition", "1"));
+                    add(new Param("pureData", "true"));
+                    add(new Param("base64Encode", "false"));
+                }})
+                .execute()
+                .get();
+        Assert.assertEquals(res2.getResponseBody(), "message5");
+
+        // pureData=true, base64Encode=true
+        org.asynchttpclient.Response res3 = client.prepareGet(url)
+                .addQueryParams(new ArrayList<Param>() {{
+                    add(new Param("initialPosition", "latest"));
+                    add(new Param("messagePosition", "1"));
+                    add(new Param("pureData", "true"));
+                    add(new Param("base64Encode", "true"));
+                }})
+                .execute()
+                .get();
+        Assert.assertEquals(res3.getResponseBody(), new String(Base64.getEncoder().encode("message5".getBytes())));
     }
 
     @Test

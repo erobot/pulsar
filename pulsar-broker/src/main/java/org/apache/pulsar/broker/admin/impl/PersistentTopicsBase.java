@@ -2348,7 +2348,7 @@ public class PersistentTopicsBase extends AdminResource {
                 @Override
                 public void readEntryComplete(Entry entry, Object ctx) {
                     try {
-                        asyncResponse.resume(generateResponseWithEntry(entry));
+                        asyncResponse.resume(generateResponseWithEntry(entry, false, false));
                     } catch (IOException exception) {
                         asyncResponse.resume(new RestException(exception));
                     } finally {
@@ -2399,7 +2399,7 @@ public class PersistentTopicsBase extends AdminResource {
             } else {
                 entry = sub.peekNthMessage(messagePosition).get();
             }
-            return generateResponseWithEntry(entry);
+            return generateResponseWithEntry(entry, false, false);
         } catch (NullPointerException npe) {
             throw new RestException(Status.NOT_FOUND, "Message not found");
         } catch (Exception exception) {
@@ -2413,7 +2413,8 @@ public class PersistentTopicsBase extends AdminResource {
         }
     }
 
-    protected Response internalExamineMessage(String initialPosition, long messagePosition, boolean authoritative) {
+    protected Response internalExamineMessage(String initialPosition, long messagePosition,
+                                              boolean authoritative, boolean pureData, boolean base64Encode) {
         if (topicName.isGlobal()) {
             validateGlobalNamespaceOwnership(namespaceName);
         }
@@ -2458,7 +2459,7 @@ public class PersistentTopicsBase extends AdminResource {
                     future.completeExceptionally(exception);
                 }
             }, null);
-            return generateResponseWithEntry(future.get());
+            return generateResponseWithEntry(future.get(), pureData, base64Encode);
         } catch (Exception exception) {
             exception.printStackTrace();
             log.error("[{}] Failed to examine message at position {} from {} due to {}", clientAppId(), messagePosition,
@@ -2477,7 +2478,7 @@ public class PersistentTopicsBase extends AdminResource {
         }
     }
 
-    private Response generateResponseWithEntry(Entry entry) throws IOException {
+    private Response generateResponseWithEntry(Entry entry, boolean pureData, boolean base64Encode) throws IOException {
         checkNotNull(entry);
         PositionImpl pos = (PositionImpl) entry.getPosition();
         ByteBuf metadataAndPayload = entry.getDataBuffer();
@@ -2595,13 +2596,23 @@ public class PersistentTopicsBase extends AdminResource {
 
         // Decode if needed
         CompressionCodec codec = CompressionCodecProvider.getCompressionCodec(metadata.getCompression());
-        ByteBuf uncompressedPayload = codec.decode(metadataAndPayload, metadata.getUncompressedSize());
+        ByteBuf uncompressedData = codec.decode(metadataAndPayload, metadata.getUncompressedSize());
+
+        if (pureData) {
+            Commands.skipMessageMetadata(uncompressedData);
+        }
+
+        if (base64Encode) {
+            ByteBuf oldData = uncompressedData;
+            uncompressedData = io.netty.handler.codec.base64.Base64.encode(uncompressedData);
+            oldData.release();
+        }
 
         // Copy into a heap buffer for output stream compatibility
-        ByteBuf data = PulsarByteBufAllocator.DEFAULT.heapBuffer(uncompressedPayload.readableBytes(),
-                uncompressedPayload.readableBytes());
-        data.writeBytes(uncompressedPayload);
-        uncompressedPayload.release();
+        ByteBuf data = PulsarByteBufAllocator.DEFAULT.heapBuffer(uncompressedData.readableBytes(),
+                uncompressedData.readableBytes());
+        data.writeBytes(uncompressedData);
+        uncompressedData.release();
 
         StreamingOutput stream = output -> {
             output.write(data.array(), data.arrayOffset(), data.readableBytes());
