@@ -52,7 +52,6 @@ import javax.ws.rs.core.StreamingOutput;
 import org.apache.bookkeeper.mledger.AsyncCallbacks;
 import org.apache.bookkeeper.mledger.AsyncCallbacks.ManagedLedgerInfoCallback;
 import org.apache.bookkeeper.mledger.Entry;
-import org.apache.bookkeeper.mledger.LedgerOffloader;
 import org.apache.bookkeeper.mledger.ManagedLedger;
 import org.apache.bookkeeper.mledger.ManagedLedgerConfig;
 import org.apache.bookkeeper.mledger.ManagedLedgerException;
@@ -820,19 +819,6 @@ public class PersistentTopicsBase extends AdminResource {
                 TopicPolicies topicPolicies = op.orElseGet(TopicPolicies::new);
                 topicPolicies.setOffloadPolicies(offloadPolicies);
                 return pulsar().getTopicPoliciesService().updateTopicPoliciesAsync(topicName, topicPolicies);
-            }).thenCompose(__ -> {
-                //The policy update is asynchronous. Cache at this step may not be updated yet.
-                //So we need to set the loader by the incoming offloadPolicies instead of topic policies cache.
-                PartitionedTopicMetadata metadata = fetchPartitionedTopicMetadata(pulsar(), topicName);
-                if (metadata.partitions > 0) {
-                    List<CompletableFuture<Void>> futures = new ArrayList<>(metadata.partitions);
-                    for (int i = 0; i < metadata.partitions; i++) {
-                        futures.add(internalUpdateOffloadPolicies(offloadPolicies, topicName.getPartition(i)));
-                    }
-                    return FutureUtil.waitForAll(futures);
-                } else {
-                    return internalUpdateOffloadPolicies(offloadPolicies, topicName);
-                }
             });
     }
 
@@ -858,35 +844,6 @@ public class PersistentTopicsBase extends AdminResource {
                 topicPolicies.setInactiveTopicPolicies(inactiveTopicPolicies);
                 return pulsar().getTopicPoliciesService().updateTopicPoliciesAsync(topicName, topicPolicies);
             });
-    }
-
-    private CompletableFuture<Void> internalUpdateOffloadPolicies(OffloadPoliciesImpl offloadPolicies,
-                                                                  TopicName topicName) {
-        return pulsar().getBrokerService().getTopicIfExists(topicName.toString())
-                .thenAccept(optionalTopic -> {
-                    try {
-                        if (!optionalTopic.isPresent() || !topicName.isPersistent()) {
-                            return;
-                        }
-                        PersistentTopic persistentTopic = (PersistentTopic) optionalTopic.get();
-                        ManagedLedgerConfig managedLedgerConfig = persistentTopic.getManagedLedger().getConfig();
-                        if (offloadPolicies == null) {
-                            LedgerOffloader namespaceOffloader =
-                                    pulsar().getLedgerOffloaderMap().get(topicName.getNamespaceObject());
-                            LedgerOffloader topicOffloader = managedLedgerConfig.getLedgerOffloader();
-                            if (topicOffloader != null && topicOffloader != namespaceOffloader) {
-                                topicOffloader.close();
-                            }
-                            managedLedgerConfig.setLedgerOffloader(namespaceOffloader);
-                        } else {
-                            managedLedgerConfig.setLedgerOffloader(
-                                    pulsar().createManagedLedgerOffloader(offloadPolicies));
-                        }
-                        persistentTopic.getManagedLedger().setConfig(managedLedgerConfig);
-                    } catch (PulsarServerException e) {
-                        throw new RestException(e);
-                    }
-                });
     }
 
     protected CompletableFuture<Integer> internalGetMaxUnackedMessagesOnSubscription(boolean applied) {
