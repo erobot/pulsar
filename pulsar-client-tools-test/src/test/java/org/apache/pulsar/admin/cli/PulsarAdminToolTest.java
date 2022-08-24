@@ -890,7 +890,7 @@ public class PulsarAdminToolTest {
         verify(mockTopics).setOffloadPolicies("persistent://myprop/clust/ns1/ds1", offloadPolicies);
 
         CmdTopics cmdTopics2 = new CmdTopics(() -> admin);
-        cmdTopics2.run(split("set-offload-policies persistent://myprop/clust/ns1/ds2 -d s3 -r region -b bucket -e endpoint -orp tiered-storage-first -mbs 64M -rbs 1M -oat 1M -oae 10s"));
+        cmdTopics2.run(split("set-offload-policies persistent://myprop/clust/ns1/ds2 -d s3 -r region -b bucket -e endpoint -orp tiered-storage-first -m 64M -rb 1M -t 1M -dl 10s"));
         OffloadPoliciesImpl offloadPolicies2 = OffloadPoliciesImpl.create("s3", "region", "bucket"
           , "endpoint", null, null, null, null,
           67108864, 1048576, 1048576L, 10000L, OffloadedReadPriority.TIERED_STORAGE_FIRST);

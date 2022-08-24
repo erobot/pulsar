@@ -1651,28 +1651,28 @@ public class CmdTopics extends CmdBase {
         private String s3RoleSessionName;
 
         @Parameter(
-          names = {"--maxBlockSize", "-mbs"},
+          names = {"-m", "--maxBlockSizeInBytes", "--maxBlockSize", "-mbs"},
           description = "Max block size (eg: 32M, 64M), default is 64MB",
           required = false)
         private String maxBlockSizeStr;
 
         @Parameter(
-          names = {"--readBufferSize", "-rbs"},
+          names = {"-rb", "--readBufferSizeInBytes", "--readBufferSize", "-rbs"},
           description = "Read buffer size (eg: 1M, 5M), default is 1MB",
           required = false)
         private String readBufferSizeStr;
 
         @Parameter(
-          names = {"--offloadAfterElapsed", "-oae"},
-          description = "Offload after elapsed in minutes (or minutes, hours,days,weeks eg: 100m, 3h, 2d, 5w).",
-          required = false)
-        private String offloadAfterElapsedStr;
-
-        @Parameter(
-          names = {"--offloadAfterThreshold", "-oat"},
+          names = {"-t", "--offloadThresholdInBytes", "--offloadAfterThreshold", "-oat"},
           description = "Offload after threshold size (eg: 1M, 5M)",
           required = false)
         private String offloadAfterThresholdStr;
+
+        @Parameter(
+          names = {"-dl", "--offloadDeletionLagInMillis", "--offloadAfterElapsed", "-oae"},
+          description = "Offload after elapsed in minutes (or minutes, hours,days,weeks eg: 100m, 3h, 2d, 5w).",
+          required = false)
+        private String offloadAfterElapsedStr;
 
         @Parameter(
                 names = {"--offloadedReadPriority", "-orp"},
