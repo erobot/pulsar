@@ -71,7 +71,10 @@ public class BlobStoreBackedInputStreamImpl extends BackedInputStream {
             long startRange = cursor;
             long endRange = Math.min(cursor + bufferSize - 1,
                                      objectLen - 1);
-
+            if (log.isDebugEnabled()) {
+                log.info("refillBufferIfNeeded {} - {} ({} bytes to fill)",
+                        startRange, endRange, (endRange - startRange));
+            }
             try {
                 Blob blob = blobStore.getBlob(bucket, key, new GetOptions().range(startRange, endRange));
                 versionCheck.check(key, blob);
@@ -122,6 +125,7 @@ public class BlobStoreBackedInputStreamImpl extends BackedInputStream {
             long newIndex = position - bufferOffsetStart;
             buffer.readerIndex((int) newIndex);
         } else {
+            bufferOffsetStart = bufferOffsetEnd = -1;
             this.cursor = position;
             buffer.clear();
         }
@@ -135,6 +139,13 @@ public class BlobStoreBackedInputStreamImpl extends BackedInputStream {
             throw new IOException(String.format("Error seeking, new position %d < current position %d",
                                                 position, cursor));
         }
+    }
+
+    public long getCurrentPosition() {
+        if (bufferOffsetStart != -1) {
+            return bufferOffsetStart + buffer.readerIndex();
+        }
+        return cursor + buffer.readerIndex();
     }
 
     @Override

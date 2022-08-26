@@ -2058,8 +2058,7 @@ public class CmdNamespaces extends CmdBase {
             Long offloadAfterElapsedInMillis = OffloadPoliciesImpl.DEFAULT_OFFLOAD_DELETION_LAG_IN_MILLIS;
             if (StringUtils.isNotEmpty(offloadAfterElapsedStr)) {
                 Long offloadAfterElapsed = TimeUnit.SECONDS.toMillis(RelativeTimeUtil.parseRelativeTimeInSeconds(offloadAfterElapsedStr));
-                if (positiveCheck("OffloadAfterElapsed", offloadAfterElapsed)
-                        && maxValueCheck("OffloadAfterElapsed", offloadAfterElapsed, Long.MAX_VALUE)) {
+                if (maxValueCheck("OffloadAfterElapsed", offloadAfterElapsed, Long.MAX_VALUE)) {
                     offloadAfterElapsedInMillis = offloadAfterElapsed;
                 }
             }
@@ -2067,8 +2066,7 @@ public class CmdNamespaces extends CmdBase {
             Long offloadAfterThresholdInBytes = OffloadPoliciesImpl.DEFAULT_OFFLOAD_THRESHOLD_IN_BYTES;
             if (StringUtils.isNotEmpty(offloadAfterThresholdStr)) {
                 long offloadAfterThreshold = validateSizeString(offloadAfterThresholdStr);
-                if (positiveCheck("OffloadAfterThreshold", offloadAfterThreshold)
-                        && maxValueCheck("OffloadAfterThreshold", offloadAfterThreshold, Long.MAX_VALUE)) {
+                if (maxValueCheck("OffloadAfterThreshold", offloadAfterThreshold, Long.MAX_VALUE)) {
                     offloadAfterThresholdInBytes = offloadAfterThreshold;
                 }
             }
