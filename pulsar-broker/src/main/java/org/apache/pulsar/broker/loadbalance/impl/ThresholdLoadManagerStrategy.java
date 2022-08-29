@@ -57,7 +57,8 @@ public class ThresholdLoadManagerStrategy implements ModularLoadManagerStrategy 
                 conf.getLoadBalancerDirectMemoryResourceWeight(), conf.getLoadBalancerBandwithInResourceWeight(),
                 conf.getLoadBalancerBandwithOutResourceWeight(), conf.isLoadBalancerBandwithSumInAndOut());
         if (brokerResourceUsage > overloadThreshold) {
-            log.warn("Broker {} is overloaded: max usage={}", brokerData.getLocalData().getWebServiceUrl(), brokerResourceUsage);
+            log.warn("Broker {} is overloaded: max usage={}",
+              brokerData.getLocalData().getWebServiceUrl(), brokerResourceUsage);
             return Double.POSITIVE_INFINITY;
         }
 
