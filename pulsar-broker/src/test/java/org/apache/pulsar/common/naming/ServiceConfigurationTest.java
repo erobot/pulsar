@@ -69,7 +69,7 @@ public class ServiceConfigurationTest {
     public void testDataReadPriority() throws Exception {
         final String zookeeperServer = "localhost:2184";
         final int brokerServicePort = 1000;
-        InputStream newStream = updateProp(zookeeperServer, String.valueOf(brokerServicePort), "ns1,ns2");
+        InputStream newStream = updateProp(zookeeperServer, String.valueOf(brokerServicePort), "ns1,ns2", 0.05);
         final ServiceConfiguration config = PulsarConfigurationLoader.create(newStream, ServiceConfiguration.class);
         assertEquals(config.getManagedLedgerDataReadPriority(), "bookkeeper-first");
         OffloadPoliciesImpl offloadPolicies = OffloadPoliciesImpl.create(config.getProperties());

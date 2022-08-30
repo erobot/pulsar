@@ -21,7 +21,7 @@
 
 PULSAR_DEPLOY_DIR=$1
 PULSAR_SOURCE_DIR=`pwd`
-PULSAR_VERSION=2.8.3
+PULSAR_VERSION=2.9.3
 
 
 # maven build project
