@@ -815,21 +815,22 @@ public class PersistentTopicsTest extends MockedPulsarServiceBaseTest {
         Assert.assertEquals(new String(admin.topics().examineMessage(topicName + "-partition-0", "latest", 4).getData()), "message2");
         Assert.assertEquals(new String(admin.topics().examineMessage(topicName + "-partition-0", "latest", 5).getData()), "message1");
 
+    }
+
+    public void testExamineMessageWithPureDataAndBase64Encode() throws Exception {
+        TenantInfoImpl tenantInfo = new TenantInfoImpl(Sets.newHashSet("role1", "role2"), Sets.newHashSet("test"));
+        admin.tenants().createTenant("tenant-xyz", tenantInfo);
+        admin.namespaces().createNamespace("tenant-xyz/ns-abc", Sets.newHashSet("test"));
+        final String topicName = "persistent://tenant-xyz/ns-abc/topic-123";
+
+        admin.topics().createPartitionedTopic(topicName, 1);
+        Producer<String> producer = pulsarClient.newProducer(Schema.STRING).topic(topicName + "-partition-0").create();
         String url = pulsar.getWebServiceAddress() + "/admin/v2/persistent/tenant-xyz/ns-abc/topic-123-partition-0/examinemessage";
         @Cleanup
         AsyncHttpClient client = new DefaultAsyncHttpClient();
 
-        // pureData=false, base64Encode=false
-        org.asynchttpclient.Response res1 = client.prepareGet(url)
-                .addQueryParams(new ArrayList<Param>() {{
-                    add(new Param("initialPosition", "latest"));
-                    add(new Param("messagePosition", "1"));
-                    add(new Param("pureData", "false"));
-                    add(new Param("base64Encode", "false"));
-                }})
-                .execute()
-                .get();
-        Assert.assertNotEquals(res1.getResponseBody(), "message5");
+        String m1 = "message1";
+        producer.send(m1);
 
         // pureData=true, base64Encode=false
         org.asynchttpclient.Response res2 = client.prepareGet(url)
@@ -841,7 +842,7 @@ public class PersistentTopicsTest extends MockedPulsarServiceBaseTest {
                 }})
                 .execute()
                 .get();
-        Assert.assertEquals(res2.getResponseBody(), "message5");
+        Assert.assertEquals(res2.getResponseBody(), m1);
 
         // pureData=true, base64Encode=true
         org.asynchttpclient.Response res3 = client.prepareGet(url)
@@ -853,7 +854,25 @@ public class PersistentTopicsTest extends MockedPulsarServiceBaseTest {
                 }})
                 .execute()
                 .get();
-        Assert.assertEquals(res3.getResponseBody(), new String(Base64.getEncoder().encode("message5".getBytes())));
+        Assert.assertEquals(res3.getResponseBody(), new String(Base64.getEncoder().encode(m1.getBytes())));
+
+        // test netty base64 encode "breakLines=false"
+        String m2 = "";
+        for (int i = 0; i < 30; i++) {
+            m2 = String.format("%smessage%d", m2, i);
+        }
+        producer.send(m2);
+
+        org.asynchttpclient.Response res4 = client.prepareGet(url)
+                .addQueryParams(new ArrayList<Param>() {{
+                    add(new Param("initialPosition", "latest"));
+                    add(new Param("messagePosition", "1"));
+                    add(new Param("pureData", "true"));
+                    add(new Param("base64Encode", "true"));
+                }})
+                .execute()
+                .get();
+        Assert.assertEquals(res4.getResponseBody(), new String(Base64.getEncoder().encode(m2.getBytes())));
     }
 
     @Test
