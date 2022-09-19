@@ -2629,7 +2629,7 @@ public class PersistentTopicsBase extends AdminResource {
 
         if (base64Encode) {
             ByteBuf oldData = uncompressedData;
-            uncompressedData = io.netty.handler.codec.base64.Base64.encode(uncompressedData);
+            uncompressedData = io.netty.handler.codec.base64.Base64.encode(uncompressedData, false);
             oldData.release();
         }
 
