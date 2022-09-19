@@ -363,6 +363,7 @@ public class ManagedCursorImpl implements ManagedCursor {
 
                 cursorLedgerStat = stat;
                 lastActive = info.getLastActive() != 0 ? info.getLastActive() : lastActive;
+                log.info("[{}] [{}] Recover cursor last active to [{}]", ledger.getName(), name, lastActive);
 
                 if (info.getCursorsLedgerId() == -1L) {
                     // There is no cursor ledger to read the last position from. It means the cursor has been properly
