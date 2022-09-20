@@ -75,6 +75,7 @@ public class ModularLoadManagerStrategyTest {
         BrokerData brokerData3 = initBrokerData(60, 100);
 
         ServiceConfiguration conf = new ServiceConfiguration();
+        conf.setLoadBalancerBandwithSumInAndOut(false);
         ModularLoadManagerStrategy strategy = new ThresholdLoadManagerStrategy();
 
         LoadData loadData = new LoadData();
@@ -116,6 +117,7 @@ public class ModularLoadManagerStrategyTest {
         brokerDataMap.put("4", brokerData4);
 
         ServiceConfiguration conf = new ServiceConfiguration();
+        conf.setLoadBalancerBandwithSumInAndOut(false);
         conf.setLoadBalancerCPUResourceWeight(1.0);
         conf.setLoadBalancerMemoryResourceWeight(0.1);
         conf.setLoadBalancerDirectMemoryResourceWeight(0.1);
@@ -170,6 +172,43 @@ public class ModularLoadManagerStrategyTest {
         assertEquals(strategy.selectBroker(candidates, bundleData, loadData, conf), Optional.of("2"));
     }
 
+    public void testLeastResourceUsageWithWeightFallback() {
+        BundleData bundleData = new BundleData();
+        BrokerData brokerData1 = initBrokerData(50, 100);
+        BrokerData brokerData2 = initBrokerData(40, 100);
+        BrokerData brokerData3 = initBrokerData(40, 100);
+        BrokerData brokerData4 = initBrokerData(40, 100);
+        LoadData loadData = new LoadData();
+        Map<String, BrokerData> brokerDataMap = loadData.getBrokerData();
+        brokerDataMap.put("1", brokerData1);
+        brokerDataMap.put("2", brokerData2);
+        brokerDataMap.put("3", brokerData3);
+        brokerDataMap.put("4", brokerData4);
+
+        ServiceConfiguration conf = new ServiceConfiguration();
+        conf.setLoadBalancerBandwithSumInAndOut(false);
+        conf.setLoadBalancerCPUResourceWeight(1.0);
+        conf.setLoadBalancerMemoryResourceWeight(0.1);
+        conf.setLoadBalancerDirectMemoryResourceWeight(0.1);
+        conf.setLoadBalancerBandwithInResourceWeight(1.0);
+        conf.setLoadBalancerBandwithOutResourceWeight(1.0);
+        conf.setLoadBalancerHistoryResourcePercentage(0.5);
+        conf.setLoadBalancerAverageResourceUsageDifferenceThresholdPercentage(10);
+
+        ModularLoadManagerStrategy strategy = new LeastResourceUsageWithWeight();
+
+        // Should choice broker from broker 2 3 4.
+        Set<String> candidates = new HashSet<>();
+        candidates.add("1");
+        candidates.add("2");
+        candidates.add("3");
+        candidates.add("4");
+
+        assertTrue(
+                Arrays.asList(Optional.of("2"), Optional.of("3"), Optional.of("4"))
+                        .contains(strategy.selectBroker(candidates, bundleData, loadData, conf)));
+    }
+
     public void testLeastResourceUsageWithWeightWithArithmeticException()
             throws NoSuchFieldException, IllegalAccessException {
         BundleData bundleData = new BundleData();
@@ -185,6 +224,7 @@ public class ModularLoadManagerStrategyTest {
         brokerDataMap.put("4", brokerData4);
 
         ServiceConfiguration conf = new ServiceConfiguration();
+        conf.setLoadBalancerBandwithSumInAndOut(false);
         conf.setLoadBalancerCPUResourceWeight(1.0);
         conf.setLoadBalancerMemoryResourceWeight(0.1);
         conf.setLoadBalancerDirectMemoryResourceWeight(0.1);
