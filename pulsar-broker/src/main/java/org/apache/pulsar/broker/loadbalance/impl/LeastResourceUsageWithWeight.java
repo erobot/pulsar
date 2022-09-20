@@ -152,6 +152,19 @@ public class LeastResourceUsageWithWeight implements ModularLoadManagerStrategy 
         });
 
         if (bestBrokers.isEmpty()) {
+            // No brokers are within diffThreshold
+            // Fallback to choose brokers under avg
+            log.warn("All {} brokers are not within diffThreshold {}, fallback to choose brokers under avg.",
+                    candidates.size(), diffThreshold);
+            candidates.forEach(broker -> {
+                Double brokerResUsage = brokerAvgResourceUsageWithWeight.getOrDefault(broker, MAX_RESOURCE_USAGE);
+                if ((brokerResUsage <= avgUsage)) {
+                    bestBrokers.add(broker);
+                }
+            });
+        }
+
+        if (bestBrokers.isEmpty()) {
             // Assign randomly as all brokers are overloaded.
             log.warn("Assign randomly as all {} brokers are overloaded.", candidates.size());
             bestBrokers.addAll(candidates);
