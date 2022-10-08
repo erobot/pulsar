@@ -21,15 +21,21 @@ package org.apache.pulsar.broker.loadbalance;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 
+import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 
+
+import java.util.Set;
 import org.apache.pulsar.broker.BrokerData;
 import org.apache.pulsar.broker.BundleData;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.broker.TimeAverageBrokerData;
 import org.apache.pulsar.broker.loadbalance.impl.LeastLongTermMessageRate;
+import org.apache.pulsar.broker.loadbalance.impl.LeastResourceUsageWithWeight;
 import org.apache.pulsar.broker.loadbalance.impl.ThresholdLoadManagerStrategy;
 import org.apache.pulsar.policies.data.loadbalancer.LocalBrokerData;
 import org.apache.pulsar.policies.data.loadbalancer.ResourceUsage;
@@ -69,6 +75,7 @@ public class ModularLoadManagerStrategyTest {
         BrokerData brokerData3 = initBrokerData(60, 100);
 
         ServiceConfiguration conf = new ServiceConfiguration();
+        conf.setLoadBalancerBandwithSumInAndOut(false);
         ModularLoadManagerStrategy strategy = new ThresholdLoadManagerStrategy();
 
         LoadData loadData = new LoadData();
@@ -95,10 +102,159 @@ public class ModularLoadManagerStrategyTest {
         assertEquals(strategy.selectBroker(brokerDataMap.keySet(), bundleData, loadData, conf), Optional.of("3"));
     }
 
+    // Test that least resource usage with weight works correctly.
+    public void testLeastResourceUsageWithWeight() {
+        BundleData bundleData = new BundleData();
+        BrokerData brokerData1 = initBrokerData(10, 100);
+        BrokerData brokerData2 = initBrokerData(30, 100);
+        BrokerData brokerData3 = initBrokerData(60, 100);
+        BrokerData brokerData4 = initBrokerData(5, 100);
+        LoadData loadData = new LoadData();
+        Map<String, BrokerData> brokerDataMap = loadData.getBrokerData();
+        brokerDataMap.put("1", brokerData1);
+        brokerDataMap.put("2", brokerData2);
+        brokerDataMap.put("3", brokerData3);
+        brokerDataMap.put("4", brokerData4);
+
+        ServiceConfiguration conf = new ServiceConfiguration();
+        conf.setLoadBalancerBandwithSumInAndOut(false);
+        conf.setLoadBalancerCPUResourceWeight(1.0);
+        conf.setLoadBalancerMemoryResourceWeight(0.1);
+        conf.setLoadBalancerDirectMemoryResourceWeight(0.1);
+        conf.setLoadBalancerBandwithInResourceWeight(1.0);
+        conf.setLoadBalancerBandwithOutResourceWeight(1.0);
+        conf.setLoadBalancerHistoryResourcePercentage(0.5);
+        conf.setLoadBalancerAverageResourceUsageDifferenceThresholdPercentage(5);
+
+        ModularLoadManagerStrategy strategy = new LeastResourceUsageWithWeight();
+
+        // Make brokerAvgResourceUsageWithWeight contain broker4.
+        strategy.selectBroker(brokerDataMap.keySet(), bundleData, loadData, conf);
+
+        // Should choice broker from broker1 2 3.
+        Set<String> candidates = new HashSet<>();
+        candidates.add("1");
+        candidates.add("2");
+        candidates.add("3");
+
+        assertEquals(strategy.selectBroker(candidates, bundleData, loadData, conf), Optional.of("1"));
+
+        brokerData1 = initBrokerData(20, 100);
+        brokerData2 = initBrokerData(30, 100);
+        brokerData3 = initBrokerData(50, 100);
+        brokerDataMap.put("1", brokerData1);
+        brokerDataMap.put("2", brokerData2);
+        brokerDataMap.put("3", brokerData3);
+        assertEquals(strategy.selectBroker(candidates, bundleData, loadData, conf), Optional.of("1"));
+
+        brokerData1 = initBrokerData(30, 100);
+        brokerData2 = initBrokerData(30, 100);
+        brokerData3 = initBrokerData(40, 100);
+        brokerDataMap.put("1", brokerData1);
+        brokerDataMap.put("2", brokerData2);
+        brokerDataMap.put("3", brokerData3);
+        assertEquals(strategy.selectBroker(candidates, bundleData, loadData, conf), Optional.of("1"));
+
+        brokerData1 = initBrokerData(30, 100);
+        brokerData2 = initBrokerData(30, 100);
+        brokerData3 = initBrokerData(40, 100);
+        brokerDataMap.put("1", brokerData1);
+        brokerDataMap.put("2", brokerData2);
+        brokerDataMap.put("3", brokerData3);
+        assertEquals(strategy.selectBroker(candidates, bundleData, loadData, conf), Optional.of("1"));
+
+        brokerData1 = initBrokerData(35, 100);
+        brokerData2 = initBrokerData(20, 100);
+        brokerData3 = initBrokerData(45, 100);
+        brokerDataMap.put("1", brokerData1);
+        brokerDataMap.put("2", brokerData2);
+        brokerDataMap.put("3", brokerData3);
+        assertEquals(strategy.selectBroker(candidates, bundleData, loadData, conf), Optional.of("2"));
+    }
+
+    public void testLeastResourceUsageWithWeightFallback() {
+        BundleData bundleData = new BundleData();
+        BrokerData brokerData1 = initBrokerData(50, 100);
+        BrokerData brokerData2 = initBrokerData(40, 100);
+        BrokerData brokerData3 = initBrokerData(40, 100);
+        BrokerData brokerData4 = initBrokerData(40, 100);
+        LoadData loadData = new LoadData();
+        Map<String, BrokerData> brokerDataMap = loadData.getBrokerData();
+        brokerDataMap.put("1", brokerData1);
+        brokerDataMap.put("2", brokerData2);
+        brokerDataMap.put("3", brokerData3);
+        brokerDataMap.put("4", brokerData4);
+
+        ServiceConfiguration conf = new ServiceConfiguration();
+        conf.setLoadBalancerBandwithSumInAndOut(false);
+        conf.setLoadBalancerCPUResourceWeight(1.0);
+        conf.setLoadBalancerMemoryResourceWeight(0.1);
+        conf.setLoadBalancerDirectMemoryResourceWeight(0.1);
+        conf.setLoadBalancerBandwithInResourceWeight(1.0);
+        conf.setLoadBalancerBandwithOutResourceWeight(1.0);
+        conf.setLoadBalancerHistoryResourcePercentage(0.5);
+        conf.setLoadBalancerAverageResourceUsageDifferenceThresholdPercentage(10);
+
+        ModularLoadManagerStrategy strategy = new LeastResourceUsageWithWeight();
+
+        // Should choice broker from broker 2 3 4.
+        Set<String> candidates = new HashSet<>();
+        candidates.add("1");
+        candidates.add("2");
+        candidates.add("3");
+        candidates.add("4");
+
+        assertTrue(
+                Arrays.asList(Optional.of("2"), Optional.of("3"), Optional.of("4"))
+                        .contains(strategy.selectBroker(candidates, bundleData, loadData, conf)));
+    }
+
+    public void testLeastResourceUsageWithWeightWithArithmeticException()
+            throws NoSuchFieldException, IllegalAccessException {
+        BundleData bundleData = new BundleData();
+        BrokerData brokerData1 = initBrokerData(10, 100);
+        BrokerData brokerData2 = initBrokerData(30, 100);
+        BrokerData brokerData3 = initBrokerData(60, 100);
+        BrokerData brokerData4 = initBrokerData(5, 100);
+        LoadData loadData = new LoadData();
+        Map<String, BrokerData> brokerDataMap = loadData.getBrokerData();
+        brokerDataMap.put("1", brokerData1);
+        brokerDataMap.put("2", brokerData2);
+        brokerDataMap.put("3", brokerData3);
+        brokerDataMap.put("4", brokerData4);
+
+        ServiceConfiguration conf = new ServiceConfiguration();
+        conf.setLoadBalancerBandwithSumInAndOut(false);
+        conf.setLoadBalancerCPUResourceWeight(1.0);
+        conf.setLoadBalancerMemoryResourceWeight(0.1);
+        conf.setLoadBalancerDirectMemoryResourceWeight(0.1);
+        conf.setLoadBalancerBandwithInResourceWeight(1.0);
+        conf.setLoadBalancerBandwithOutResourceWeight(1.0);
+        conf.setLoadBalancerHistoryResourcePercentage(0.5);
+        conf.setLoadBalancerAverageResourceUsageDifferenceThresholdPercentage(5);
+
+        LeastResourceUsageWithWeight strategy = new LeastResourceUsageWithWeight();
+
+        // Should choice broker from broker1 2 3.
+        Set<String> candidates = new HashSet<>();
+        candidates.add("1");
+        candidates.add("2");
+        candidates.add("3");
+        Field strategyUpdater = LeastResourceUsageWithWeight.class.getDeclaredField("brokerAvgResourceUsageWithWeight");
+        strategyUpdater.setAccessible(true);
+        Map<String, Double> brokerAvgResourceUsageWithWeight = new HashMap<>();
+        brokerAvgResourceUsageWithWeight.put("1", 0.1d);
+        brokerAvgResourceUsageWithWeight.put("2", 0.3d);
+        brokerAvgResourceUsageWithWeight.put("4", 0.05d);
+        strategyUpdater.set(strategy, brokerAvgResourceUsageWithWeight);
+        assertEquals(strategy.selectBroker(candidates, bundleData, loadData, conf), Optional.of("1"));
+    }
+
     private BrokerData initBrokerData(double usage, double limit) {
         LocalBrokerData localBrokerData = new LocalBrokerData();
         localBrokerData.setCpu(new ResourceUsage(usage, limit));
         localBrokerData.setMemory(new ResourceUsage(usage, limit));
+        localBrokerData.setDirectMemory(new ResourceUsage(usage, limit));
         localBrokerData.setBandwidthIn(new ResourceUsage(usage, limit));
         localBrokerData.setBandwidthOut(new ResourceUsage(usage, limit));
         BrokerData brokerData = new BrokerData(localBrokerData);
