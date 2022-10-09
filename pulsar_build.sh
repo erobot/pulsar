@@ -25,7 +25,7 @@ PULSAR_VERSION=2.9.3
 
 
 # maven build project
-mvn clean install -DskipTests
+mvn clean install -DskipTests -Dlicense.skip=true -T 8
 if [ $? -eq 0 ]; then
     echo "maven build succeed."
 else
