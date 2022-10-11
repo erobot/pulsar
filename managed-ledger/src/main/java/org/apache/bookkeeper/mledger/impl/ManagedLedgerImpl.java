@@ -2125,7 +2125,8 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
         if (factory.getConfig().isRemoveReadEntriesInCache()) {
             PositionImpl evictionPos;
             if (config.isCacheEvictionByMarkDeletedPosition()) {
-                evictionPos = getEarlierMarkDeletedPositionForActiveCursors().getNext();
+                PositionImpl earlierMarkDeletedPosition = getEarlierMarkDeletedPositionForActiveCursors();
+                evictionPos = earlierMarkDeletedPosition != null ? earlierMarkDeletedPosition.getNext() : null;
             } else {
                 // Always remove all entries already read by active cursors
                 evictionPos = getEarlierReadPositionForActiveCursors();
