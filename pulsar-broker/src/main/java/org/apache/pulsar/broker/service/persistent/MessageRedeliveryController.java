@@ -22,7 +22,7 @@ import com.google.common.collect.ComparisonChain;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.bookkeeper.mledger.impl.PositionImpl;
 import org.apache.pulsar.common.util.collections.ConcurrentLongLongPairHashMap;
 import org.apache.pulsar.common.util.collections.ConcurrentLongLongPairHashMap.LongPair;
@@ -31,6 +31,7 @@ import org.apache.pulsar.utils.ConcurrentBitmapSortedLongPairSet;
 public class MessageRedeliveryController {
     private final ConcurrentBitmapSortedLongPairSet messagesToRedeliver;
     private final ConcurrentLongLongPairHashMap hashesToBeBlocked;
+    private final ConcurrentHashMap<Integer, Integer> hashesToBeBlockedMap;
 
     public MessageRedeliveryController(boolean allowOutOfOrderDelivery) {
         this.messagesToRedeliver = new ConcurrentBitmapSortedLongPairSet();
@@ -38,6 +39,7 @@ public class MessageRedeliveryController {
                 ? null
                 : ConcurrentLongLongPairHashMap
                     .newBuilder().concurrencyLevel(2).expectedItems(128).autoShrink(true).build();
+        this.hashesToBeBlockedMap = allowOutOfOrderDelivery ? null : new ConcurrentHashMap<>();
     }
 
     public void add(long ledgerId, long entryId) {
@@ -46,14 +48,36 @@ public class MessageRedeliveryController {
 
     public void add(long ledgerId, long entryId, long stickyKeyHash) {
         if (hashesToBeBlocked != null) {
-            hashesToBeBlocked.put(ledgerId, entryId, stickyKeyHash, 0);
+            hashesToBeBlockedMap.compute((int) stickyKeyHash, (key, value) -> {
+                boolean success = hashesToBeBlocked.putIfAbsent(ledgerId, entryId, stickyKeyHash, 0);
+                if (success) {
+                    if (value != null) {
+                        value++;
+                    } else {
+                        value = 1;
+                    }
+                }
+                return value;
+            });
         }
         messagesToRedeliver.add(ledgerId, entryId);
     }
 
     public void remove(long ledgerId, long entryId) {
         if (hashesToBeBlocked != null) {
-            hashesToBeBlocked.remove(ledgerId, entryId);
+            LongPair valuePair = hashesToBeBlocked.get(ledgerId, entryId);
+            if (valuePair != null) {
+                hashesToBeBlockedMap.compute((int) valuePair.first, (key, value) -> {
+                    boolean success = hashesToBeBlocked.remove(ledgerId, entryId);
+                    if (success && value != null) {
+                        value--;
+                        if (value <= 0) {
+                            value = null;
+                        }
+                    }
+                    return value;
+                });
+            }
         }
         messagesToRedeliver.remove(ledgerId, entryId);
     }
@@ -61,14 +85,30 @@ public class MessageRedeliveryController {
     public void removeAllUpTo(long markDeleteLedgerId, long markDeleteEntryId) {
         if (hashesToBeBlocked != null) {
             List<LongPair> keysToRemove = new ArrayList<>();
+            List<Integer> hashesToRemove = new ArrayList<>();
             hashesToBeBlocked.forEach((ledgerId, entryId, stickyKeyHash, none) -> {
                 if (ComparisonChain.start().compare(ledgerId, markDeleteLedgerId).compare(entryId, markDeleteEntryId)
                         .result() <= 0) {
                     keysToRemove.add(new LongPair(ledgerId, entryId));
+                    hashesToRemove.add((int) stickyKeyHash);
                 }
             });
-            keysToRemove.forEach(longPair -> hashesToBeBlocked.remove(longPair.first, longPair.second));
+            for (int i = 0; i < keysToRemove.size(); ++i) {
+                final int index = i;
+                hashesToBeBlockedMap.compute(hashesToRemove.get(index), (key, value) -> {
+                    boolean success = hashesToBeBlocked.remove(
+                            keysToRemove.get(index).first, keysToRemove.get(index).second);
+                    if (success && value != null) {
+                        value--;
+                        if (value <= 0) {
+                            value = null;
+                        }
+                    }
+                    return value;
+                });
+            }
             keysToRemove.clear();
+            hashesToRemove.clear();
         }
         messagesToRedeliver.removeUpTo(markDeleteLedgerId, markDeleteEntryId + 1);
     }
@@ -79,6 +119,7 @@ public class MessageRedeliveryController {
 
     public void clear() {
         if (hashesToBeBlocked != null) {
+            hashesToBeBlockedMap.clear();
             hashesToBeBlocked.clear();
         }
         messagesToRedeliver.clear();
@@ -89,15 +130,14 @@ public class MessageRedeliveryController {
     }
 
     public boolean containsStickyKeyHashes(Set<Integer> stickyKeyHashes) {
-        final AtomicBoolean isContained = new AtomicBoolean(false);
         if (hashesToBeBlocked != null) {
-            hashesToBeBlocked.forEach((ledgerId, entryId, stickyKeyHash, none) -> {
-                if (!isContained.get() && stickyKeyHashes.contains((int) stickyKeyHash)) {
-                    isContained.set(true);
+            for (Integer hash : stickyKeyHashes) {
+                if (hashesToBeBlockedMap.containsKey(hash)) {
+                    return true;
                 }
-            });
+            }
         }
-        return isContained.get();
+        return false;
     }
 
     public Set<PositionImpl> getMessagesToReplayNow(int maxMessagesToRead) {
