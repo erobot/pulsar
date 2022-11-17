@@ -259,10 +259,11 @@ public class LocalBrokerData implements LoadManagerReport {
                                                 final double directMemoryWeight, final double bandwithInWeight,
                                                 final double bandWithOutWeight, final boolean sumBandwithInAndOut) {
         if (sumBandwithInAndOut) {
+            double bandwidthUsage = Math.min(100.0d,
+                    bandwidthIn.percentUsage() * bandwithInWeight + bandwidthOut.percentUsage() * bandWithOutWeight);
+
             return max(cpu.percentUsage() * cpuWeight, memory.percentUsage() * memoryWeight,
-                    directMemory.percentUsage() * directMemoryWeight,
-                    bandwidthIn.percentUsage() * bandwithInWeight + bandwidthOut.percentUsage() * bandWithOutWeight)
-                    / 100;
+                    directMemory.percentUsage() * directMemoryWeight, bandwidthUsage) / 100;
         } else {
             return max(cpu.percentUsage() * cpuWeight, memory.percentUsage() * memoryWeight,
                     directMemory.percentUsage() * directMemoryWeight, bandwidthIn.percentUsage() * bandwithInWeight,
