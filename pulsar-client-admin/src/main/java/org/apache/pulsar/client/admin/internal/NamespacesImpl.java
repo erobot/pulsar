@@ -3103,6 +3103,16 @@ public class NamespacesImpl extends BaseResource implements Namespaces {
     }
 
     @Override
+    public long getOffloadThresholdInSeconds(String namespace) throws PulsarAdminException {
+        return sync(() -> getOffloadThresholdInSecondsAsync(namespace));
+    }
+
+    @Override
+    public CompletableFuture<Long> getOffloadThresholdInSecondsAsync(String namespace) {
+        return asyncGetNamespaceParts(new FutureCallback<Long>(){}, namespace, "offloadThresholdInSeconds");
+    }
+
+    @Override
     public void setOffloadThreshold(String namespace, long offloadThreshold) throws PulsarAdminException {
         try {
             setOffloadThresholdAsync(namespace, offloadThreshold).
@@ -3122,6 +3132,19 @@ public class NamespacesImpl extends BaseResource implements Namespaces {
         NamespaceName ns = NamespaceName.get(namespace);
         WebTarget path = namespacePath(ns, "offloadThreshold");
         return asyncPutRequest(path, Entity.entity(offloadThreshold, MediaType.APPLICATION_JSON));
+    }
+
+    @Override
+    public void setOffloadThresholdInSeconds(String namespace, long offloadThresholdInSeconds)
+            throws PulsarAdminException {
+        sync(() -> setOffloadThresholdInSecondsAsync(namespace, offloadThresholdInSeconds));
+    }
+
+    @Override
+    public CompletableFuture<Void> setOffloadThresholdInSecondsAsync(String namespace, long offloadThresholdInSeconds) {
+        NamespaceName ns = NamespaceName.get(namespace);
+        WebTarget path = namespacePath(ns, "offloadThresholdInSeconds");
+        return asyncPutRequest(path, Entity.entity(offloadThresholdInSeconds, MediaType.APPLICATION_JSON));
     }
 
     @Override
