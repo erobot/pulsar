@@ -1781,7 +1781,7 @@ public class CmdTopics extends CmdBase {
             OffloadPoliciesImpl offloadPolicies = OffloadPoliciesImpl.create(driver, region, bucket, endpoint,
                     s3Role, s3RoleSessionName,
                     awsId, awsSecret,
-                    maxBlockSizeInBytes, readBufferSizeInBytes, offloadAfterThresholdInBytes, offloadThresholdInSeconds，
+                    maxBlockSizeInBytes, readBufferSizeInBytes, offloadAfterThresholdInBytes, offloadThresholdInSeconds,
                     offloadAfterElapsedInMillis, offloadedReadPriority);
 
             getTopics().setOffloadPolicies(persistentTopic, offloadPolicies);

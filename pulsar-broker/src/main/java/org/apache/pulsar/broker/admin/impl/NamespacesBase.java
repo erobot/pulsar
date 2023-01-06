@@ -2282,7 +2282,6 @@ public abstract class NamespacesBase extends AdminResource {
         CompletableFuture<Void> f = new CompletableFuture<>();
 
         validateNamespacePolicyOperationAsync(namespaceName, PolicyName.OFFLOAD, PolicyOperation.WRITE)
-                .thenApply(v -> validatePoliciesReadOnlyAccessAsync())
                 .thenApply(v -> updatePoliciesAsync(namespaceName,
                         policies -> {
                             if (policies.offload_policies == null) {
