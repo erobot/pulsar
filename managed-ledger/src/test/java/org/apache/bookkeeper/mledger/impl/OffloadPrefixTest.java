@@ -25,11 +25,7 @@ import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 import com.google.common.collect.ImmutableSet;
 import java.lang.reflect.Field;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -779,13 +775,21 @@ public class OffloadPrefixTest extends MockedBookKeeperTestCase {
         if (sizeThreshold == null && timeThreshold != null && timeThreshold == 0L) {
             // All the inactive ledgers will be offloaded
             assertEventuallyTrue(() -> offloader.offloadedLedgers().size() == 2);
-            List<Long> allLedgerIds = ledger.getLedgersInfoAsList().stream().map(LedgerInfo::getLedgerId).toList();
-            assertEquals(offloader.offloadedLedgers(), Set.of(allLedgerIds.get(0), allLedgerIds.get(1)));
+            List<Long> allLedgerIds = new ArrayList<>();
+            for (LedgerInfo ledgerInfo : ledger.getLedgersInfoAsList()) {
+                Long ledgerId = ledgerInfo.getLedgerId();
+                allLedgerIds.add(ledgerId);
+            }
+            assertEquals(offloader.offloadedLedgers(), ImmutableSet.of(allLedgerIds.get(0), allLedgerIds.get(1)));
         } else if (sizeThreshold != null && sizeThreshold == 100L && timeThreshold == null) {
             // The last 2 ledgers won't be offloaded
             assertEventuallyTrue(() -> offloader.offloadedLedgers().size() == 1);
-            List<Long> allLedgerIds = ledger.getLedgersInfoAsList().stream().map(LedgerInfo::getLedgerId).toList();
-            assertEquals(offloader.offloadedLedgers(), Set.of(allLedgerIds.get(0)));
+            List<Long> allLedgerIds = new ArrayList<>();
+            for (LedgerInfo ledgerInfo : ledger.getLedgersInfoAsList()) {
+                Long ledgerId = ledgerInfo.getLedgerId();
+                allLedgerIds.add(ledgerId);
+            }
+            assertEquals(offloader.offloadedLedgers(), ImmutableSet.of(allLedgerIds.get(0)));
         } else if (sizeThreshold != null && sizeThreshold == -1L && timeThreshold == null) {
             // Offloading is disabled, no ledgers will be offloaded.
             assertEventuallyTrue(() -> offloader.offloadedLedgers().size() == 0);
@@ -797,14 +801,22 @@ public class OffloadPrefixTest extends MockedBookKeeperTestCase {
         } else if (sizeThreshold != null && sizeThreshold == 1L && timeThreshold != null && timeThreshold == 1L) {
             // All the inactive ledgers will be offloaded
             assertEventuallyTrue(() -> offloader.offloadedLedgers().size() == 2);
-            List<Long> allLedgerIds = ledger.getLedgersInfoAsList().stream().map(LedgerInfo::getLedgerId).toList();
-            assertEquals(offloader.offloadedLedgers(), Set.of(allLedgerIds.get(0), allLedgerIds.get(1)));
+            List<Long> allLedgerIds = new ArrayList<>();
+            for (LedgerInfo ledgerInfo : ledger.getLedgersInfoAsList()) {
+                Long ledgerId = ledgerInfo.getLedgerId();
+                allLedgerIds.add(ledgerId);
+            }
+            assertEquals(offloader.offloadedLedgers(), ImmutableSet.of(allLedgerIds.get(0), allLedgerIds.get(1)));
         } else if (sizeThreshold != null && sizeThreshold == 100L
                 && timeThreshold != null && timeThreshold == Long.MAX_VALUE) {
             // The last 2 ledgers won't be offloaded
             assertEventuallyTrue(() -> offloader.offloadedLedgers().size() == 1);
-            List<Long> allLedgerIds = ledger.getLedgersInfoAsList().stream().map(LedgerInfo::getLedgerId).toList();
-            assertEquals(offloader.offloadedLedgers(), Set.of(allLedgerIds.get(0)));
+            List<Long> allLedgerIds = new ArrayList<>();
+            for (LedgerInfo ledgerInfo : ledger.getLedgersInfoAsList()) {
+                Long ledgerId = ledgerInfo.getLedgerId();
+                allLedgerIds.add(ledgerId);
+            }
+            assertEquals(offloader.offloadedLedgers(), ImmutableSet.of(allLedgerIds.get(0)));
         }
     }
 
@@ -868,7 +880,7 @@ public class OffloadPrefixTest extends MockedBookKeeperTestCase {
             // All the inactive ledgers will be offloaded.
             assertEventuallyTrue(() -> offloader.offloadedLedgers().size() == 4);
             assertEquals(offloader.offloadedLedgers(),
-                    Set.of(ledger.getLedgersInfoAsList().get(0).getLedgerId(),
+              ImmutableSet.of(ledger.getLedgersInfoAsList().get(0).getLedgerId(),
                             ledger.getLedgersInfoAsList().get(1).getLedgerId(),
                             ledger.getLedgersInfoAsList().get(2).getLedgerId(),
                             ledger.getLedgersInfoAsList().get(3).getLedgerId()));
@@ -876,7 +888,7 @@ public class OffloadPrefixTest extends MockedBookKeeperTestCase {
             // the last 2 ledgers won't be offloaded.
             assertEventuallyTrue(() -> offloader.offloadedLedgers().size() == 3);
             assertEquals(offloader.offloadedLedgers(),
-                    Set.of(ledger.getLedgersInfoAsList().get(0).getLedgerId(),
+              ImmutableSet.of(ledger.getLedgersInfoAsList().get(0).getLedgerId(),
                             ledger.getLedgersInfoAsList().get(1).getLedgerId(),
                             ledger.getLedgersInfoAsList().get(2).getLedgerId()));
         } else if (sizeThreshold != null && sizeThreshold.equals(1L)
@@ -884,7 +896,7 @@ public class OffloadPrefixTest extends MockedBookKeeperTestCase {
             // the last 1 ledger wont be offloaded.
             assertEventuallyTrue(() -> offloader.offloadedLedgers().size() == 4);
             assertEquals(offloader.offloadedLedgers(),
-                    Set.of(ledger.getLedgersInfoAsList().get(0).getLedgerId(),
+              ImmutableSet.of(ledger.getLedgersInfoAsList().get(0).getLedgerId(),
                             ledger.getLedgersInfoAsList().get(1).getLedgerId(),
                             ledger.getLedgersInfoAsList().get(2).getLedgerId(),
                             ledger.getLedgersInfoAsList().get(3).getLedgerId()));
@@ -893,7 +905,7 @@ public class OffloadPrefixTest extends MockedBookKeeperTestCase {
             // All the inactive ledgers will be offloaded.
             assertEventuallyTrue(() -> offloader.offloadedLedgers().size() == 4);
             assertEquals(offloader.offloadedLedgers(),
-                    Set.of(ledger.getLedgersInfoAsList().get(0).getLedgerId(),
+              ImmutableSet.of(ledger.getLedgersInfoAsList().get(0).getLedgerId(),
                             ledger.getLedgersInfoAsList().get(1).getLedgerId(),
                             ledger.getLedgersInfoAsList().get(2).getLedgerId(),
                             ledger.getLedgersInfoAsList().get(3).getLedgerId()));
@@ -959,7 +971,7 @@ public class OffloadPrefixTest extends MockedBookKeeperTestCase {
             // All the inactive ledgers will be offloaded.
             assertEventuallyTrue(() -> offloader.offloadedLedgers().size() == 3);
             assertEquals(offloader.offloadedLedgers(),
-                    Set.of(ledger.getLedgersInfoAsList().get(0).getLedgerId(),
+              ImmutableSet.of(ledger.getLedgersInfoAsList().get(0).getLedgerId(),
                             ledger.getLedgersInfoAsList().get(1).getLedgerId(),
                             ledger.getLedgersInfoAsList().get(2).getLedgerId()));
         } else if (sizeThreshold != null && sizeThreshold.equals(100L) && timeThreshold == null) {
@@ -968,14 +980,14 @@ public class OffloadPrefixTest extends MockedBookKeeperTestCase {
                     PositionImpl.get(ledger.getLedgersInfoAsList().get(1).getLedgerId(), 0));
             assertEventuallyTrue(() -> offloader.offloadedLedgers().size() == 2);
             assertEquals(offloader.offloadedLedgers(),
-                    Set.of(ledger.getLedgersInfoAsList().get(0).getLedgerId(),
+              ImmutableSet.of(ledger.getLedgersInfoAsList().get(0).getLedgerId(),
                             ledger.getLedgersInfoAsList().get(1).getLedgerId()));
         } else if (sizeThreshold != null && sizeThreshold.equals(1L)
                 && timeThreshold != null && timeThreshold.equals(1L)) {
             // the last 1 ledger wont be offloaded.
             assertEventuallyTrue(() -> offloader.offloadedLedgers().size() == 3);
             assertEquals(offloader.offloadedLedgers(),
-                    Set.of(ledger.getLedgersInfoAsList().get(0).getLedgerId(),
+              ImmutableSet.of(ledger.getLedgersInfoAsList().get(0).getLedgerId(),
                             ledger.getLedgersInfoAsList().get(1).getLedgerId(),
                             ledger.getLedgersInfoAsList().get(2).getLedgerId()));
         } else if (sizeThreshold != null && sizeThreshold.equals(0L)
@@ -983,7 +995,7 @@ public class OffloadPrefixTest extends MockedBookKeeperTestCase {
             // All the inactive ledgers will be offloaded.
             assertEventuallyTrue(() -> offloader.offloadedLedgers().size() == 3);
             assertEquals(offloader.offloadedLedgers(),
-                    Set.of(ledger.getLedgersInfoAsList().get(0).getLedgerId(),
+              ImmutableSet.of(ledger.getLedgersInfoAsList().get(0).getLedgerId(),
                             ledger.getLedgersInfoAsList().get(1).getLedgerId(),
                             ledger.getLedgersInfoAsList().get(2).getLedgerId()));
         }
@@ -1034,9 +1046,13 @@ public class OffloadPrefixTest extends MockedBookKeeperTestCase {
         if (sizeThreshold == null && timeThreshold != null && timeThreshold == 0L) {
             // All the inactive ledgers will be offloaded
             assertEventuallyTrue(() -> offloader.offloadedLedgers().size() == 4);
-            List<Long> allLedgerIds = ledger.getLedgersInfoAsList().stream().map(LedgerInfo::getLedgerId).toList();
+            List<Long> allLedgerIds = new ArrayList<>();
+            for (LedgerInfo ledgerInfo : ledger.getLedgersInfoAsList()) {
+                Long ledgerId = ledgerInfo.getLedgerId();
+                allLedgerIds.add(ledgerId);
+            }
             assertEquals(offloader.offloadedLedgers(),
-                    Set.of(allLedgerIds.get(0),
+              ImmutableSet.of(allLedgerIds.get(0),
                             allLedgerIds.get(1),
                             allLedgerIds.get(2),
                             allLedgerIds.get(3))
@@ -1044,9 +1060,13 @@ public class OffloadPrefixTest extends MockedBookKeeperTestCase {
         } else if (sizeThreshold != null && sizeThreshold == 100L && timeThreshold == null) {
             // The last 2 ledgers won't be offloaded
             assertEventuallyTrue(() -> offloader.offloadedLedgers().size() == 3);
-            List<Long> allLedgerIds = ledger.getLedgersInfoAsList().stream().map(LedgerInfo::getLedgerId).toList();
+            List<Long> allLedgerIds = new ArrayList<>();
+            for (LedgerInfo ledgerInfo : ledger.getLedgersInfoAsList()) {
+                Long ledgerId = ledgerInfo.getLedgerId();
+                allLedgerIds.add(ledgerId);
+            }
             assertEquals(offloader.offloadedLedgers(),
-                    Set.of(allLedgerIds.get(0),
+              ImmutableSet.of(allLedgerIds.get(0),
                             allLedgerIds.get(1),
                             allLedgerIds.get(2))
             );
@@ -1061,9 +1081,13 @@ public class OffloadPrefixTest extends MockedBookKeeperTestCase {
         } else if (sizeThreshold != null && sizeThreshold == 1L && timeThreshold != null && timeThreshold == 1L) {
             // All the inactive ledgers will be offloaded
             assertEventuallyTrue(() -> offloader.offloadedLedgers().size() == 4);
-            List<Long> allLedgerIds = ledger.getLedgersInfoAsList().stream().map(LedgerInfo::getLedgerId).toList();
+            List<Long> allLedgerIds = new ArrayList<>();
+            for (LedgerInfo ledgerInfo : ledger.getLedgersInfoAsList()) {
+                Long ledgerId = ledgerInfo.getLedgerId();
+                allLedgerIds.add(ledgerId);
+            }
             assertEquals(offloader.offloadedLedgers(),
-                    Set.of(allLedgerIds.get(0),
+              ImmutableSet.of(allLedgerIds.get(0),
                             allLedgerIds.get(1),
                             allLedgerIds.get(2),
                             allLedgerIds.get(3))
