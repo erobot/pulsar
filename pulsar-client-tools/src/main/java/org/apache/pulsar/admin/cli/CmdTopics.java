@@ -253,6 +253,10 @@ public class CmdTopics extends CmdBase {
             cmdUsageFormatter.addDeprecatedCommand("get-maxProducers");
             cmdUsageFormatter.addDeprecatedCommand("set-maxProducers");
             cmdUsageFormatter.addDeprecatedCommand("remove-maxProducers");
+
+            cmdUsageFormatter.addDeprecatedCommand("get-retention");
+            cmdUsageFormatter.addDeprecatedCommand("set-retention");
+            cmdUsageFormatter.addDeprecatedCommand("remove-retention");
         }
     }
 
@@ -1668,6 +1672,10 @@ public class CmdTopics extends CmdBase {
           required = false)
         private String offloadAfterThresholdStr;
 
+        @Parameter(names = {"-ts", "--offloadThresholdInSeconds"}
+                , description = "ManagedLedger offload threshold in seconds")
+        private Long offloadThresholdInSeconds;
+
         @Parameter(
           names = {"-dl", "--offloadDeletionLagInMillis", "--offloadAfterElapsed", "-oae"},
           description = "Offload after elapsed in minutes (or minutes, hours,days,weeks eg: 100m, 3h, 2d, 5w).",
@@ -1773,7 +1781,7 @@ public class CmdTopics extends CmdBase {
             OffloadPoliciesImpl offloadPolicies = OffloadPoliciesImpl.create(driver, region, bucket, endpoint,
                     s3Role, s3RoleSessionName,
                     awsId, awsSecret,
-                    maxBlockSizeInBytes, readBufferSizeInBytes, offloadAfterThresholdInBytes,
+                    maxBlockSizeInBytes, readBufferSizeInBytes, offloadAfterThresholdInBytes, offloadThresholdInSeconds,
                     offloadAfterElapsedInMillis, offloadedReadPriority);
 
             getTopics().setOffloadPolicies(persistentTopic, offloadPolicies);

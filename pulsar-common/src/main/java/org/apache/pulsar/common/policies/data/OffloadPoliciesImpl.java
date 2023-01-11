@@ -69,6 +69,7 @@ public class OffloadPoliciesImpl implements Serializable, OffloadPolicies {
             .of("S3", "aws-s3", "google-cloud-storage", "filesystem", "azureblob", "aliyun-oss");
     public static final String DEFAULT_OFFLOADER_DIRECTORY = "./offloaders";
     public static final Long DEFAULT_OFFLOAD_THRESHOLD_IN_BYTES = null;
+    public static final Long DEFAULT_OFFLOAD_THRESHOLD_IN_SECONDS = null;
     public static final Long DEFAULT_OFFLOAD_DELETION_LAG_IN_MILLIS = null;
 
     public static final String OFFLOAD_THRESHOLD_NAME_IN_CONF_FILE =
@@ -89,6 +90,9 @@ public class OffloadPoliciesImpl implements Serializable, OffloadPolicies {
     @Configuration
     @JsonProperty(access = JsonProperty.Access.READ_WRITE)
     private Integer managedLedgerOffloadPrefetchRounds = DEFAULT_OFFLOAD_MAX_PREFETCH_ROUNDS;
+    @Configuration
+    @JsonProperty(access = JsonProperty.Access.READ_WRITE)
+    private Long managedLedgerOffloadThresholdInSeconds = DEFAULT_OFFLOAD_THRESHOLD_IN_SECONDS;
     @Configuration
     @JsonProperty(access = JsonProperty.Access.READ_WRITE)
     private Long managedLedgerOffloadThresholdInBytes = DEFAULT_OFFLOAD_THRESHOLD_IN_BYTES;
@@ -177,11 +181,14 @@ public class OffloadPoliciesImpl implements Serializable, OffloadPolicies {
                                              String role, String roleSessionName,
                                              String credentialId, String credentialSecret,
                                              Integer maxBlockSizeInBytes, Integer readBufferSizeInBytes,
-                                             Long offloadThresholdInBytes, Long offloadDeletionLagInMillis,
+                                             Long offloadThresholdInBytes,
+                                             Long offloadThresholdInSeconds,
+                                             Long offloadDeletionLagInMillis,
                                              OffloadedReadPriority readPriority) {
         OffloadPoliciesImplBuilder builder = builder()
                 .managedLedgerOffloadDriver(driver)
                 .managedLedgerOffloadThresholdInBytes(offloadThresholdInBytes)
+                .managedLedgerOffloadThresholdInSeconds(offloadThresholdInSeconds)
                 .managedLedgerOffloadDeletionLagInMillis(offloadDeletionLagInMillis)
                 .managedLedgerOffloadBucket(bucket)
                 .managedLedgerOffloadRegion(region)
@@ -319,6 +326,8 @@ public class OffloadPoliciesImpl implements Serializable, OffloadPolicies {
                 this.getManagedLedgerOffloadPrefetchRounds());
         setProperty(properties, "managedLedgerOffloadThresholdInBytes",
                 this.getManagedLedgerOffloadThresholdInBytes());
+        setProperty(properties, "managedLedgerOffloadThresholdInSeconds",
+                this.getManagedLedgerOffloadThresholdInSeconds());
         setProperty(properties, "managedLedgerOffloadDeletionLagInMillis",
                 this.getManagedLedgerOffloadDeletionLagInMillis());
 
@@ -392,7 +401,8 @@ public class OffloadPoliciesImpl implements Serializable, OffloadPolicies {
      * @return offload policies
      */
     public static OffloadPoliciesImpl oldPoliciesCompatible(OffloadPoliciesImpl nsLevelPolicies, Policies policies) {
-        if (policies == null || (policies.offload_threshold == -1 && policies.offload_deletion_lag_ms == null)) {
+        if (policies == null || (policies.offload_threshold == -1 && policies.offload_threshold_in_seconds == -1
+                && policies.offload_deletion_lag_ms == null)) {
             return nsLevelPolicies;
         }
         if (nsLevelPolicies == null) {
@@ -401,6 +411,10 @@ public class OffloadPoliciesImpl implements Serializable, OffloadPolicies {
         if (nsLevelPolicies.getManagedLedgerOffloadThresholdInBytes() == null
                 && policies.offload_threshold != -1) {
             nsLevelPolicies.setManagedLedgerOffloadThresholdInBytes(policies.offload_threshold);
+        }
+        if (nsLevelPolicies.getManagedLedgerOffloadThresholdInSeconds() == null
+                && policies.offload_threshold_in_seconds != -1) {
+            nsLevelPolicies.setManagedLedgerOffloadThresholdInSeconds(policies.offload_threshold_in_seconds);
         }
         if (nsLevelPolicies.getManagedLedgerOffloadDeletionLagInMillis() == null
                 && policies.offload_deletion_lag_ms != null) {
@@ -502,6 +516,13 @@ public class OffloadPoliciesImpl implements Serializable, OffloadPolicies {
 
         public OffloadPoliciesImplBuilder managedLedgerOffloadThresholdInBytes(Long managedLedgerOffloadThresholdInBytes) {
             impl.managedLedgerOffloadThresholdInBytes = managedLedgerOffloadThresholdInBytes;
+            return this;
+        }
+
+        @Override
+        public OffloadPoliciesImplBuilder managedLedgerOffloadThresholdInSeconds(
+                Long managedLedgerOffloadThresholdInSeconds) {
+            impl.managedLedgerOffloadThresholdInSeconds = managedLedgerOffloadThresholdInSeconds;
             return this;
         }
 

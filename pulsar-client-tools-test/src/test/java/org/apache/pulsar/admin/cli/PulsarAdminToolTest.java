@@ -60,6 +60,7 @@ import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.ResourceQuotas;
 import org.apache.pulsar.client.admin.Schemas;
 import org.apache.pulsar.client.admin.Tenants;
+import org.apache.pulsar.client.admin.TopicPolicies;
 import org.apache.pulsar.client.admin.Topics;
 import org.apache.pulsar.client.admin.Transactions;
 import org.apache.pulsar.client.admin.internal.OffloadProcessStatusImpl;
@@ -748,11 +749,11 @@ public class PulsarAdminToolTest {
         verify(mockNamespaces).clearOffloadDeleteLag("myprop/clust/ns1");
 
         namespaces.run(split(
-                "set-offload-policies myprop/clust/ns1 -r test-region -d aws-s3 -b test-bucket -e http://test.endpoint -mbs 32M -rbs 5M -oat 10M -oae 10s -orp tiered-storage-first"));
+                "set-offload-policies myprop/clust/ns1 -r test-region -d aws-s3 -b test-bucket -e http://test.endpoint -mbs 32M -rbs 5M -oat 10M -oats 100 -oae 10s -orp tiered-storage-first"));
         verify(mockNamespaces).setOffloadPolicies("myprop/clust/ns1",
                 OffloadPoliciesImpl.create("aws-s3", "test-region", "test-bucket",
                         "http://test.endpoint",null, null, null, null, 32 * 1024 * 1024, 5 * 1024 * 1024,
-                        10 * 1024 * 1024L, 10000L, OffloadedReadPriority.TIERED_STORAGE_FIRST));
+                        10 * 1024 * 1024L, 100L, 10000L, OffloadedReadPriority.TIERED_STORAGE_FIRST));
 
         namespaces.run(split("remove-offload-policies myprop/clust/ns1"));
         verify(mockNamespaces).removeOffloadPolicies("myprop/clust/ns1");
@@ -886,18 +887,65 @@ public class PulsarAdminToolTest {
         when(admin.topics()).thenReturn(mockTopics);
 
         CmdTopics cmdTopics = new CmdTopics(() -> admin);
-        cmdTopics.run(split("set-offload-policies persistent://myprop/clust/ns1/ds1 -d s3 -r region -b bucket -e endpoint -orp tiered-storage-first -mbs 8 -rbs 9 -oat 10 -oae 24"));
+        cmdTopics.run(split("set-offload-policies persistent://myprop/clust/ns1/ds1 -d s3 -r region -b bucket -e endpoint -orp tiered-storage-first -mbs 8 -rbs 9 -oat 10 -oae 24-ts 10"));
         OffloadPoliciesImpl offloadPolicies = OffloadPoliciesImpl.create("s3", "region", "bucket"
           , "endpoint", null, null, null, null,
-          8, 9, 10L, 24000L, OffloadedReadPriority.TIERED_STORAGE_FIRST);
+          8, 9, 10L, 10L, 24000L, OffloadedReadPriority.TIERED_STORAGE_FIRST);
         verify(mockTopics).setOffloadPolicies("persistent://myprop/clust/ns1/ds1", offloadPolicies);
 
         CmdTopics cmdTopics2 = new CmdTopics(() -> admin);
-        cmdTopics2.run(split("set-offload-policies persistent://myprop/clust/ns1/ds2 -d s3 -r region -b bucket -e endpoint -orp tiered-storage-first -m 64M -rb 1M -t 1M -dl 10s"));
+        cmdTopics2.run(split("set-offload-policies persistent://myprop/clust/ns1/ds2 -d s3 -r region -b bucket -e endpoint -orp tiered-storage-first -m 64M -rb 1M -t 1M -dl 10s -ts 10"));
         OffloadPoliciesImpl offloadPolicies2 = OffloadPoliciesImpl.create("s3", "region", "bucket"
           , "endpoint", null, null, null, null,
-          67108864, 1048576, 1048576L, 10000L, OffloadedReadPriority.TIERED_STORAGE_FIRST);
+          67108864, 1048576, 1048576L, 10L, 10000L, OffloadedReadPriority.TIERED_STORAGE_FIRST);
         verify(mockTopics).setOffloadPolicies("persistent://myprop/clust/ns1/ds2", offloadPolicies2);
+    }
+
+    @Test
+    public void topicPolicies() throws Exception {
+        PulsarAdmin admin = Mockito.mock(PulsarAdmin.class);
+        TopicPolicies mockTopicsPolicies = mock(TopicPolicies.class);
+        TopicPolicies mockGlobalTopicsPolicies = mock(TopicPolicies.class);
+        when(admin.topicPolicies()).thenReturn(mockTopicsPolicies);
+        when(admin.topicPolicies(false)).thenReturn(mockTopicsPolicies);
+        when(admin.topicPolicies(true)).thenReturn(mockGlobalTopicsPolicies);
+        Schemas mockSchemas = mock(Schemas.class);
+        when(admin.schemas()).thenReturn(mockSchemas);
+        Lookup mockLookup = mock(Lookup.class);
+        when(admin.lookups()).thenReturn(mockLookup);
+
+        CmdTopicPolicies cmdTopics = new CmdTopicPolicies(() -> admin);
+
+        cmdTopics.run(split("get-offload-policies persistent://myprop/clust/ns1/ds1"));
+        verify(mockTopicsPolicies).getOffloadPolicies("persistent://myprop/clust/ns1/ds1", false);
+
+        cmdTopics.run(split("remove-offload-policies persistent://myprop/clust/ns1/ds1"));
+        verify(mockTopicsPolicies).removeOffloadPolicies("persistent://myprop/clust/ns1/ds1");
+
+        cmdTopics.run(split("set-offload-policies persistent://myprop/clust/ns1/ds1 -d s3 -r" +
+                " region -b bucket -e endpoint -m 8 -rb 9 -t 10 -ts 10 -orp tiered-storage-first"));
+        verify(mockTopicsPolicies)
+                .setOffloadPolicies("persistent://myprop/clust/ns1/ds1",
+                        OffloadPoliciesImpl.create("s3", "region", "bucket" , "endpoint", null, null, null, null,
+                                8, 9, 10L, 10L, null, OffloadedReadPriority.TIERED_STORAGE_FIRST));
+
+        cmdTopics.run(split("get-retention persistent://myprop/clust/ns1/ds1"));
+        verify(mockTopicsPolicies).getRetention("persistent://myprop/clust/ns1/ds1", false);
+        cmdTopics.run(split("set-retention persistent://myprop/clust/ns1/ds1 -t 10m -s 20M"));
+        verify(mockTopicsPolicies).setRetention("persistent://myprop/clust/ns1/ds1",
+                new RetentionPolicies(10, 20));
+        cmdTopics.run(split("remove-retention persistent://myprop/clust/ns1/ds1"));
+        verify(mockTopicsPolicies).removeRetention("persistent://myprop/clust/ns1/ds1");
+
+        // Reset the cmd, and check global option
+        cmdTopics = new CmdTopicPolicies(() -> admin);
+        cmdTopics.run(split("get-retention persistent://myprop/clust/ns1/ds1 -g"));
+        verify(mockGlobalTopicsPolicies).getRetention("persistent://myprop/clust/ns1/ds1", false);
+        cmdTopics.run(split("set-retention persistent://myprop/clust/ns1/ds1 -t 10m -s 20M -g"));
+        verify(mockGlobalTopicsPolicies).setRetention("persistent://myprop/clust/ns1/ds1",
+                new RetentionPolicies(10, 20));
+        cmdTopics.run(split("remove-retention persistent://myprop/clust/ns1/ds1 -g"));
+        verify(mockGlobalTopicsPolicies).removeRetention("persistent://myprop/clust/ns1/ds1");
     }
 
     @Test
@@ -1118,10 +1166,10 @@ public class PulsarAdminToolTest {
         cmdTopics.run(split("remove-delayed-delivery persistent://myprop/clust/ns1/ds1"));
         verify(mockTopics).removeDelayedDeliveryPolicy("persistent://myprop/clust/ns1/ds1") ;
 
-        cmdTopics.run(split("set-offload-policies persistent://myprop/clust/ns1/ds1 -d s3 -r region -b bucket -e endpoint -m 8 -rb 9 -t 10 -orp tiered-storage-first"));
+        cmdTopics.run(split("set-offload-policies persistent://myprop/clust/ns1/ds1 -d s3 -r region -b bucket -e endpoint -ts 50 -m 8 -rb 9 -t 10 -orp tiered-storage-first"));
         OffloadPoliciesImpl offloadPolicies = OffloadPoliciesImpl.create("s3", "region", "bucket"
                 , "endpoint", null, null, null, null,
-                8, 9, 10L, null, OffloadedReadPriority.TIERED_STORAGE_FIRST);
+                8, 9, 10L, 50L, null, OffloadedReadPriority.TIERED_STORAGE_FIRST);
         verify(mockTopics).setOffloadPolicies("persistent://myprop/clust/ns1/ds1", offloadPolicies);
 
         cmdTopics.run(split("get-max-unacked-messages-on-consumer persistent://myprop/clust/ns1/ds1"));
@@ -1185,18 +1233,10 @@ public class PulsarAdminToolTest {
         cmdTopics.run(split("get-message-by-id persistent://myprop/clust/ns1/ds1 -l 10 -e 2"));
         verify(mockTopics).getMessageById("persistent://myprop/clust/ns1/ds1", 10,2);
 
-        cmdTopics.run(split("get-retention persistent://myprop/clust/ns1/ds1"));
-        verify(mockTopics).getRetention("persistent://myprop/clust/ns1/ds1", false);
-        cmdTopics.run(split("set-retention persistent://myprop/clust/ns1/ds1 -t 10m -s 20M"));
-        verify(mockTopics).setRetention("persistent://myprop/clust/ns1/ds1",
-                new RetentionPolicies(10, 20));
-        cmdTopics.run(split("remove-retention persistent://myprop/clust/ns1/ds1"));
-        verify(mockTopics).removeRetention("persistent://myprop/clust/ns1/ds1");
-
         cmdTopics.run(split("get-dispatch-rate persistent://myprop/clust/ns1/ds1 -ap"));
         verify(mockTopics).getDispatchRate("persistent://myprop/clust/ns1/ds1", true);
         cmdTopics.run(split("remove-dispatch-rate persistent://myprop/clust/ns1/ds1"));
-        verify(mockTopics).removeRetention("persistent://myprop/clust/ns1/ds1");
+        verify(mockTopics).removeDispatchRate("persistent://myprop/clust/ns1/ds1");
         cmdTopics.run(split("set-dispatch-rate persistent://myprop/clust/ns1/ds1 -md -1 -bd -1 -dt 2"));
         verify(mockTopics).setDispatchRate("persistent://myprop/clust/ns1/ds1", DispatchRate.builder()
                 .dispatchThrottlingRateInMsg(-1)

@@ -3103,6 +3103,41 @@ public class NamespacesImpl extends BaseResource implements Namespaces {
     }
 
     @Override
+    public long getOffloadThresholdInSeconds(String namespace) throws PulsarAdminException {
+        try {
+            return getOffloadThresholdInSecondsAsync(namespace).
+              get(this.readTimeoutMs, TimeUnit.MILLISECONDS);
+        } catch (ExecutionException e) {
+            throw (PulsarAdminException) e.getCause();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new PulsarAdminException(e);
+        } catch (TimeoutException e) {
+            throw new PulsarAdminException.TimeoutException(e);
+        }
+    }
+
+    @Override
+    public CompletableFuture<Long> getOffloadThresholdInSecondsAsync(String namespace) {
+        NamespaceName ns = NamespaceName.get(namespace);
+        WebTarget path = namespacePath(ns, "offloadThresholdInSeconds");
+        final CompletableFuture<Long> future = new CompletableFuture<>();
+        asyncGetRequest(path,
+          new InvocationCallback<Long>() {
+              @Override
+              public void completed(Long threshold) {
+                  future.complete(threshold);
+              }
+
+              @Override
+              public void failed(Throwable throwable) {
+                  future.completeExceptionally(getApiException(throwable.getCause()));
+              }
+          });
+        return future;
+    }
+
+    @Override
     public void setOffloadThreshold(String namespace, long offloadThreshold) throws PulsarAdminException {
         try {
             setOffloadThresholdAsync(namespace, offloadThreshold).
@@ -3122,6 +3157,28 @@ public class NamespacesImpl extends BaseResource implements Namespaces {
         NamespaceName ns = NamespaceName.get(namespace);
         WebTarget path = namespacePath(ns, "offloadThreshold");
         return asyncPutRequest(path, Entity.entity(offloadThreshold, MediaType.APPLICATION_JSON));
+    }
+
+@Override
+public void setOffloadThresholdInSeconds(String namespace, long offloadThresholdInSeconds) throws PulsarAdminException {
+    try {
+        setOffloadThresholdInSecondsAsync(namespace, offloadThresholdInSeconds).
+          get(this.readTimeoutMs, TimeUnit.MILLISECONDS);
+    } catch (ExecutionException e) {
+        throw (PulsarAdminException) e.getCause();
+    } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new PulsarAdminException(e);
+    } catch (TimeoutException e) {
+        throw new PulsarAdminException.TimeoutException(e);
+    }
+}
+
+    @Override
+    public CompletableFuture<Void> setOffloadThresholdInSecondsAsync(String namespace, long offloadThresholdInSeconds) {
+        NamespaceName ns = NamespaceName.get(namespace);
+        WebTarget path = namespacePath(ns, "offloadThresholdInSeconds");
+        return asyncPutRequest(path, Entity.entity(offloadThresholdInSeconds, MediaType.APPLICATION_JSON));
     }
 
     @Override
