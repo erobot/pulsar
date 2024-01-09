@@ -49,6 +49,7 @@ import org.apache.pulsar.broker.web.RestException;
 import org.apache.pulsar.client.admin.internal.TopicsImpl;
 import org.apache.pulsar.common.api.proto.CommandGetTopicsOfNamespace;
 import org.apache.pulsar.common.naming.Constants;
+import org.apache.pulsar.common.naming.NamedEntity;
 import org.apache.pulsar.common.naming.NamespaceBundle;
 import org.apache.pulsar.common.naming.NamespaceName;
 import org.apache.pulsar.common.naming.TopicDomain;
@@ -237,6 +238,9 @@ public abstract class AdminResource extends PulsarWebResource {
         try {
             this.namespaceName = NamespaceName.get(property, namespace);
             this.topicName = TopicName.get(domain(), namespaceName, topic);
+            if (config().isStrictTopicNameEnabled()) {
+                NamedEntity.checkName(topicName.getLocalName());
+            }
         } catch (IllegalArgumentException e) {
             log.warn("[{}] Invalid topic name [{}://{}/{}/{}]", clientAppId(), domain(), property, namespace, topic);
             throw new RestException(Status.PRECONDITION_FAILED, "Topic name is not valid");
