@@ -75,6 +75,7 @@ public class AdminResourceTest extends BrokerTestBase {
         String topic = Codec.encode("test-topic");
 
         AdminResource resource = mockResource();
+        resource.setPulsar(pulsar);
         resource.validatePersistentTopicName(tenant, namespace, topic);
     }
 
@@ -85,6 +86,7 @@ public class AdminResourceTest extends BrokerTestBase {
         String topic = Codec.encode("test-topic");
 
         AdminResource nPResource = mockNonPersistentResource();
+        nPResource.setPulsar(pulsar);
         try {
             nPResource.validatePersistentTopicName(tenant, namespace, topic);
             fail("Should fail validation on non-persistent topic");
@@ -100,6 +102,7 @@ public class AdminResourceTest extends BrokerTestBase {
         String topic = Codec.encode("test-topic");
 
         AdminResource resource = mockResource();
+        resource.setPulsar(pulsar);
         resource.validatePartitionedTopicName(tenant, namespace, topic);
     }
 
@@ -110,6 +113,7 @@ public class AdminResourceTest extends BrokerTestBase {
         String topic = Codec.encode("test-topic-partition-0");
 
         AdminResource resource = mockResource();
+        resource.setPulsar(pulsar);
         try {
             resource.validatePartitionedTopicName(tenant, namespace, topic);
             fail("Should fail validation on invalid partitioned topic");

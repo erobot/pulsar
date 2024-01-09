@@ -147,6 +147,7 @@ import org.apache.pulsar.common.compression.CompressionCodec;
 import org.apache.pulsar.common.compression.CompressionCodecProvider;
 import org.apache.pulsar.common.intercept.InterceptException;
 import org.apache.pulsar.common.naming.Metadata;
+import org.apache.pulsar.common.naming.NamedEntity;
 import org.apache.pulsar.common.naming.NamespaceName;
 import org.apache.pulsar.common.naming.SystemTopicNames;
 import org.apache.pulsar.common.naming.TopicName;
@@ -239,6 +240,8 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
     private final long resumeThresholdPendingBytesPerThread;
 
     private final long connectionLivenessCheckTimeoutMillis;
+
+    private final boolean strictTopicNameEnabled;
 
     // Tracks and limits number of bytes pending to be published from a single specific IO thread.
     static final class PendingBytesPerThreadTracker {
@@ -341,6 +344,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
         this.topicListService = new TopicListService(pulsar, this,
                 enableSubscriptionPatternEvaluation, maxSubscriptionPatternLength);
         this.brokerInterceptor = this.service != null ? this.service.getInterceptor() : null;
+        this.strictTopicNameEnabled = conf.isStrictTopicNameEnabled();
     }
 
     @Override
@@ -3267,7 +3271,11 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
 
     private TopicName validateTopicName(String topic, long requestId, Object requestCommand) {
         try {
-            return TopicName.get(topic);
+            TopicName topicName = TopicName.get(topic);
+            if (strictTopicNameEnabled) {
+                NamedEntity.checkName(topicName.getLocalName());
+            }
+            return topicName;
         } catch (Throwable t) {
             if (log.isDebugEnabled()) {
                 log.debug("[{}] Failed to parse topic name '{}'", remoteAddress, topic, t);
